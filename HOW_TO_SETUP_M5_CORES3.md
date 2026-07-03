@@ -50,7 +50,19 @@ background_color=ffffff
 
 ---
 
-### 2. Arduino IDEで書き込み
+### 2. ファームウェアを書き込み
+
+書き込み方法は2通りあります。**初めての方は方法A(ブラウザ)がおすすめです。**
+
+#### 方法A: ブラウザから書き込み（かんたん・推奨）
+
+ChromeまたはEdgeで書き込みページを開き、CoreS3をUSBでつないでボタンを押すだけです。Arduino IDEのインストールは不要です。
+
+**→ [M5 Petit Web Flasher](https://petitones.github.io/m5-petit-scripts/)**
+
+書き込みが終わったら手順3(SDカード準備)へ進んでください。
+
+#### 方法B: Arduino IDEで書き込み（自分でコードをいじりたい人向け）
 
 [Arduino IDE](https://docs.arduino.cc/software/ide/)にアクセスしてDOWNLOAD
 ご利用のPCのOS(Windows/Mac/Linux)に合わせてください。
