@@ -52,20 +52,20 @@ unsigned long faceOverrideUntil = 0;
 bool wsClientConnected = false;
 uint8_t wsClientNum = 0;
 
-bool micActive = false;              // Mic.begin() 済みか
-volatile bool capturing = false;     // snapshot中か
+bool micActive = false;              // whether Mic.begin() has run / Mic.begin() 済みか
+volatile bool capturing = false;     // whether a snapshot is in progress / snapshot中か
 
 static const int MIC_BUF = 512;
 static int16_t micBuffer[MIC_BUF];
 static unsigned long lastMicSend = 0;
 
-// ===================== 無音検出 =====================
+// ===================== Silence detection / 無音検出 =====================
 static unsigned long lastSoundTime = 0;
 static unsigned long micStartedAt = 0;
 static unsigned long micLoopWaitStartAt = 0;
 static const unsigned long MIC_LOOP_RESPONSE_TIMEOUT_MS = 60000;
-static const unsigned long SILENCE_TIMEOUT_MS = 5000;   // 5秒無音でマイクオフ
-static const unsigned long MIC_MAX_DURATION_MS = 30000; // 最大録音時間30秒
+static const unsigned long SILENCE_TIMEOUT_MS = 5000;   // mic off after 5s of silence / 5秒無音でマイクオフ
+static const unsigned long MIC_MAX_DURATION_MS = 30000; // max recording duration 30s / 最大録音時間30秒
 static const int SILENCE_THRESHOLD = 500;
 
 static constexpr const size_t record_number     = 256;
@@ -94,7 +94,7 @@ String pendingSoundName = "";
 uint8_t currentVolumePercent = 80;  // 0-100
 uint8_t currentVolumeRaw = 204;
 static unsigned long lastFaceDraw = 0;
-// ===== リングバッファ =====
+// ===== Ring buffer / リングバッファ =====
 #define AUDIO_BUFFER_SIZE 8192
 int16_t audioBuffer[AUDIO_BUFFER_SIZE];
 volatile size_t audioWriteIndex = 0;
@@ -113,10 +113,10 @@ volatile bool faceDirty = true;
 volatile int eyeX = 0;        // -100 ~ +100
 volatile int eyeY = 0;
 volatile int mouthValue = 0;  // 0 ~ 100
-volatile uint16_t currentFaceColor = TFT_LIGHTGREY;  // setup()で上書き
-volatile uint16_t currentBackgroundColor = TFT_WHITE; // setup()で上書き
+volatile uint16_t currentFaceColor = TFT_LIGHTGREY;  // overwritten in setup() / setup()で上書き
+volatile uint16_t currentBackgroundColor = TFT_WHITE; // overwritten in setup() / setup()で上書き
 
-// ===== 視線制御 =====
+// ===== Eye gaze control / 視線制御 =====
 float eyeCurrentX = 0;
 float eyeCurrentY = 0;
 float eyeTargetX = 0;
@@ -124,7 +124,7 @@ float eyeTargetY = 0;
 unsigned long eyeReturnTime = 0;
 bool eyeAutoReturn = false;
 
-// ===== まばたき制御 =====
+// ===== Blink control / まばたき制御 =====
 bool blinking = false;
 unsigned long blinkStartTime = 0;
 unsigned long nextBlinkTime = 0;
@@ -137,10 +137,10 @@ unsigned long winkEndTime = 0;
 bool isSleeping = false;
 int touchCount = 0;
 unsigned long lastTouchTime = 0;
-unsigned long lastTouchEventTime = 0;  // 起動からのms（タップ・なでで更新）
+unsigned long lastTouchEventTime = 0;  // ms since boot, updated on tap/stroke / 起動からのms（タップ・なでで更新）
 unsigned long sleepStartTime = 0;
 
-// ===== タッチメニュー =====
+// ===== Touch menu / タッチメニュー =====
 enum TouchPhase { TOUCH_IDLE, TOUCH_PRESSING };
 TouchPhase touchPhase = TOUCH_IDLE;
 unsigned long touchPressStart = 0;
@@ -150,7 +150,7 @@ bool menuVisible = false;
 unsigned long menuShowTime = 0;
 const unsigned long MENU_TIMEOUT_MS = 5000;
 
-// ===== 設定メニュー =====
+// ===== Settings menu / 設定メニュー =====
 bool settingsVisible = false;
 unsigned long settingsShowTime = 0;
 const int BRIGHTNESS_STEPS[]    = {100, 75, 50, 5, 0};
@@ -191,7 +191,7 @@ void initSensors() {
     Serial.println("IMU NG");
   }
 
-  // ===== LTR553 設定 =====
+  // ===== LTR553 config / LTR553 設定 =====
   device_init_base_para.ps_led_pulse_freq   = LTR5XX_LED_PULSE_FREQ_40KHZ;
   device_init_base_para.ps_measurement_rate = LTR5XX_PS_MEASUREMENT_RATE_50MS;
   device_init_base_para.als_gain            = LTR5XX_ALS_GAIN_48X;
@@ -212,9 +212,9 @@ void micStartIfNeeded() {
 
   Serial.println("[MIC] starting...");
 
-  delay(10);   // ← これ重要（WiFiタスク安定待ち）
+  delay(10);   // important: wait for the WiFi task to stabilize / これ重要（WiFiタスク安定待ち）
 
-  CoreS3.Speaker.end();   // 競合防止
+  CoreS3.Speaker.end();   // avoid contention / 競合防止
   speakerActive = false;
 
   delay(5);
@@ -223,7 +223,7 @@ void micStartIfNeeded() {
   micActive = true;
   micStartedAt = millis();
 
-  // // フラッシュは軽く1回だけ
+  // // flash briefly, just once / フラッシュは軽く1回だけ
   // int16_t dummy[128];
   // CoreS3.Mic.record(dummy, 128, 16000);
 
@@ -249,7 +249,7 @@ void checkTouch() {
       touchPressStart = millis();
       touchPressX     = touch.x;
       touchPressY     = touch.y;
-      // 脊髄反射：タッチで目をつぶる
+      // reflex: close eyes on touch / 脊髄反射：タッチで目をつぶる
       if (!blinking) {
         blinking = true;
         blinkStartTime = millis();
@@ -267,7 +267,7 @@ void checkTouch() {
     }
   }
 
-  // メニュータイムアウト
+  // menu timeout / メニュータイムアウト
   if (menuVisible && millis() - menuShowTime > MENU_TIMEOUT_MS) {
     menuVisible = false;
     faceDirty = true;
@@ -285,7 +285,7 @@ void sendTouchEvent(int x, int y) {
 }
 
 int menuItemAt(int x, int y) {
-  // 0=camera(左上) 1=sensor(右上) 2=mic(左下) 3=settings(右下)
+  // 0=camera(top-left) 1=sensor(top-right) 2=mic(bottom-left) 3=settings(bottom-right) / 0=camera(左上) 1=sensor(右上) 2=mic(左下) 3=settings(右下)
   int col = (x < 160) ? 0 : 1;
   int row = (y < 120) ? 0 : 1;
   return row * 2 + col;
@@ -294,12 +294,12 @@ int menuItemAt(int x, int y) {
 void sendMenuSelectEvent(int item) {
   if (!wsClientConnected) return;
 
-  if (item == 0) {  // camera: イベントのみ送信（画像はHTTPで取得）
+  if (item == 0) {  // camera: send event only, image fetched via HTTP / イベントのみ送信（画像はHTTPで取得）
     webSocket.sendTXT(wsClientNum, "{\"event\":\"menu_select\",\"item\":\"camera\"}");
     statusLabel = "CAM";
     statusLabelUntil = millis() + 3000;
 
-  } else if (item == 2) {  // mic: マイク自動起動（1回モード）
+  } else if (item == 2) {  // mic: auto-start mic, single-shot mode / マイク自動起動（1回モード）
     micLoopMode = false;
     requestMicStart = true;
     webSocket.sendTXT(wsClientNum, "{\"event\":\"menu_select\",\"item\":\"mic\"}");
@@ -329,7 +329,7 @@ void handleTap(int x, int y) {
       settingsVisible  = true;
       faceDirty        = true;
       settingsShowTime = millis();
-      // 実機の明るさ・音量をidxに反映
+      // reflect device brightness/volume into idx / 実機の明るさ・音量をidxに反映
       { int p = map(currentBrightness, 0, 255, 0, 100); int bd=999; for(int i=0;i<BRIGHTNESS_STEP_COUNT;i++){int d=abs(BRIGHTNESS_STEPS[i]-p);if(d<bd){bd=d;brightnessIdx=i;}} }
       { int bd=999; for(int i=0;i<VOLUME_STEP_COUNT;i++){int d=abs(VOLUME_STEPS[i]-currentVolumePercent);if(d<bd){bd=d;volumeIdx=i;}} }
     } else {
@@ -337,7 +337,7 @@ void handleTap(int x, int y) {
       menuVisible = false;
     }
   } else if (micActive || micLoopMode) {
-    // マイク録音中またはループモード中はタップで停止
+    // tap to stop while recording or in loop mode / マイク録音中またはループモード中はタップで停止
     micLoopMode = false;
     requestMicStop = true;
   } else {
@@ -352,7 +352,7 @@ void handleTap(int x, int y) {
 void handleStroke(int x, int y) {
   if (menuVisible) {
     int item = menuItemAt(x, y);
-    if (item == 2) {  // MIC長押し → ループモード
+    if (item == 2) {  // long-press MIC → loop mode / MIC長押し → ループモード
       menuVisible = false;
       faceDirty = true;
       micLoopMode = true;
@@ -372,9 +372,9 @@ void handleStroke(int x, int y) {
 }
 
 void handleSettingsTap(int x, int y) {
-  settingsShowTime = millis();  // タップのたびにタイムアウトリセット
+  settingsShowTime = millis();  // reset timeout on every tap / タップのたびにタイムアウトリセット
   if (y < 36) {
-    // 時刻エリア：何もしない
+    // time area: no-op / 時刻エリア：何もしない
   } else if (y < 77) {
     if (x < 160) { if (brightnessIdx < BRIGHTNESS_STEP_COUNT - 1) brightnessIdx++; }
     else          { if (brightnessIdx > 0) brightnessIdx--; }
@@ -391,7 +391,7 @@ void handleSettingsTap(int x, int y) {
       powerSaveMode = !powerSaveMode;
       CoreS3.Display.setBrightness(powerSaveMode ? min((uint8_t)40, currentBrightness) : currentBrightness);
     }
-    // CAM TO: シングルユーザー構成のため切り替え先はUSER_NAME固定（タップは無反応）
+    // CAM TO: fixed to USER_NAME in single-user builds, tap is a no-op / シングルユーザー構成のため切り替え先はUSER_NAME固定（タップは無反応）
   } else {
     settingsVisible = false;
     faceDirty       = true;
@@ -409,7 +409,7 @@ void drawSettingsScreen() {
 
   faceSprite.fillSprite(BG);
 
-  // 時刻
+  // time / 時刻
   faceSprite.setTextColor(TFT_WHITE);
   faceSprite.setTextSize(2);
   struct tm t;
@@ -443,7 +443,7 @@ void drawSettingsScreen() {
   faceSprite.setCursor(190, 89); faceSprite.print(">>");
   faceSprite.drawFastHLine(0, 117, 320, DIV);
 
-  // PSAVE (左) / CAM TO (右) — 縦割り
+  // PSAVE (left) / CAM TO (right) — split vertically / PSAVE (左) / CAM TO (右) — 縦割り
   const uint16_t CAM_A  = faceSprite.color565( 60,  45,  80);
   faceSprite.fillRect(  0, 118, 160, 79, powerSaveMode ? PS_ON : PS_OFF);
   faceSprite.fillRect(160, 118, 160, 79, CAM_A);
@@ -468,11 +468,11 @@ void drawMenuOverlay() {
 
   faceSprite.fillSprite(BG);
 
-  // 分割線
+  // divider line / 分割線
   faceSprite.drawFastVLine(159, 0, 240, DIV);
   faceSprite.drawFastHLine(0, 119, 320, DIV);
 
-  // 4ボタン背景
+  // background for the 4 buttons / 4ボタン背景
   faceSprite.fillRoundRect(  4,   4, 151, 111, 8, BTN);
   faceSprite.fillRoundRect(164,   4, 152, 111, 8, BTN);
   faceSprite.fillRoundRect(  4, 124, 151, 112, 8, BTN);
@@ -480,7 +480,7 @@ void drawMenuOverlay() {
 
   faceSprite.setTextColor(TFT_WHITE);
 
-  // Camera (左上)
+  // Camera (top-left) / Camera (左上)
   faceSprite.setTextSize(3);
   faceSprite.setCursor(22, 28);
   faceSprite.print("CAM");
@@ -488,7 +488,7 @@ void drawMenuOverlay() {
   faceSprite.setCursor(22, 82);
   faceSprite.print("Camera");
 
-  // Sensor (右上)
+  // Sensor (top-right) / Sensor (右上)
   faceSprite.setTextSize(3);
   faceSprite.setCursor(175, 28);
   faceSprite.print("SEN");
@@ -496,7 +496,7 @@ void drawMenuOverlay() {
   faceSprite.setCursor(175, 82);
   faceSprite.print("Sensor");
 
-  // Mic (左下)
+  // Mic (bottom-left) / Mic (左下)
   faceSprite.setTextSize(3);
   faceSprite.setCursor(22, 148);
   faceSprite.print("MIC");
@@ -504,7 +504,7 @@ void drawMenuOverlay() {
   faceSprite.setCursor(8, 198);
   faceSprite.print("tap:1x  hold:loop");
 
-  // Settings (右下)
+  // Settings (bottom-right) / Settings (右下)
   faceSprite.setTextSize(3);
   faceSprite.setCursor(175, 148);
   faceSprite.print("SET");
@@ -521,12 +521,12 @@ void handleGetVolume() {
 
 void playWavFromSD(const char* path) {
 
-  // MICを必ず止める
+  // always stop the mic / MICを必ず止める
   micStopIfNeeded();
 
   CoreS3.Speaker.begin();
   CoreS3.Speaker.setVolume(currentVolumeRaw);
-  CoreS3.update();  // I2S設定を確定させる
+  CoreS3.update();  // finalize I2S settings / I2S設定を確定させる
 
   File wav = SD.open(path);
   if (!wav) {
@@ -557,13 +557,13 @@ void playWavFromSD(const char* path) {
 
   CoreS3.Speaker.playWav(buffer, size);
 
-  // 再生開始を待つ（update()を呼ばないとisPlaying()がtrueにならない）
+  // wait for playback to start (isPlaying() won't become true without calling update()) / 再生開始を待つ（update()を呼ばないとisPlaying()がtrueにならない）
   for (int i = 0; i < 200 && !CoreS3.Speaker.isPlaying(); i++) {
     CoreS3.update();
     delay(1);
   }
 
-  // 再生完了を待つ。HTTP/WSも処理してブロッキングによるタイムアウトを防ぐ
+  // wait for playback to finish; keep servicing HTTP/WS to avoid a blocking timeout / 再生完了を待つ。HTTP/WSも処理してブロッキングによるタイムアウトを防ぐ
   while (CoreS3.Speaker.isPlaying()) {
     CoreS3.update();
     server.handleClient();
@@ -596,7 +596,7 @@ void handleSetVolume() {
 
   currentVolumePercent = v;
 
-  // 0-100 → 0-255へ変換
+  // convert 0-100 to 0-255 / 0-100 → 0-255へ変換
   currentVolumeRaw = map(currentVolumePercent, 0, 100, 0, 255);
 
   CoreS3.Speaker.setVolume(currentVolumeRaw);
@@ -707,7 +707,7 @@ void drawFace(int eyeOffsetX, int eyeOffsetY, int mouthOpen) {
 
   faceSprite.fillSprite(currentBackgroundColor);
 
-  // ===== 鼻（目に合わせて移動）=====
+  // ===== Nose (moves with the eyes) / 鼻（目に合わせて移動）=====
   faceSprite.fillEllipse(
     cx + eyePxX * 0.8,
     cy + 1 + eyePxY * 0.8,
@@ -716,11 +716,11 @@ void drawFace(int eyeOffsetX, int eyeOffsetY, int mouthOpen) {
     faceColor
   );
 
-  // ===== 目 =====
+  // ===== Eyes / 目 =====
   int leftEyeHeight = 32;
   int rightEyeHeight = 32;
 
-  // 通常瞬き
+  // normal blink / 通常瞬き
   if (blinking) {
     unsigned long dt = millis() - blinkStartTime;
     float p = (float)dt / (float)BLINK_DURATION;
@@ -731,7 +731,7 @@ void drawFace(int eyeOffsetX, int eyeOffsetY, int mouthOpen) {
     rightEyeHeight = h;
   }
 
-  // ウインク優先
+  // wink takes priority / ウインク優先
   if (winkLeft) leftEyeHeight = 3;
   if (winkRight) rightEyeHeight = 3;
 
@@ -753,7 +753,7 @@ void drawFace(int eyeOffsetX, int eyeOffsetY, int mouthOpen) {
     faceColor
   );
 
-  // ===== ハート口（目と一緒に動く）=====
+  // ===== Heart mouth (moves together with the eyes) / ハート口（目と一緒に動く）=====
   int mouthY = cy + 45 + eyePxY;
 
   drawRotatedEllipseSprite(
@@ -794,7 +794,7 @@ void drawFace(int eyeOffsetX, int eyeOffsetY, int mouthOpen) {
       float t = millis() * 0.005;
 
       if (currentIcon == "love") {
-        // 右上ハート
+        // top-right heart / 右上ハート
         int hx = 260;
         int hy = 40 + sin(t) * 5;
 
@@ -904,7 +904,7 @@ void showFaceFile(const String& filename) {
   f.read(buffer, size);
   f.close();
 
-  // 背景のチカチカを抑える：黒塗りしない（drawJpgが上書き）
+  // avoid background flicker: don't fill black, drawJpg overwrites it / 背景のチカチカを抑える：黒塗りしない（drawJpgが上書き）
   CoreS3.Display.drawJpg(buffer, size, 0, 0);
   free(buffer);
 
@@ -988,7 +988,7 @@ void handleSePlay() {
     return;
   }
   String name = server.arg("name");
-  // メインループで非同期再生（ブロッキング回避）
+  // async playback in the main loop, avoid blocking / メインループで非同期再生（ブロッキング回避）
   pendingSoundName  = name;
   requestPlaySound  = true;
   server.send(200, "text/plain", "ok");
@@ -998,10 +998,10 @@ void handleSePlay() {
 void handleSnapshot() {
   capturing = true;
 
-  // カメラ中はマイクを完全停止（I2S/DMA競合対策）
+  // fully stop the mic while the camera is active, avoid I2S/DMA contention / カメラ中はマイクを完全停止（I2S/DMA競合対策）
   micStopIfNeeded();
 
-  // 最新化（捨てフレーム）
+  // refresh to the latest frame, discard stale ones / 最新化（捨てフレーム）
   CoreS3.Camera.get(); CoreS3.Camera.free(); delay(5);
   CoreS3.Camera.get(); CoreS3.Camera.free(); delay(5);
 
@@ -1054,7 +1054,7 @@ void updateWifiState() {
       showIP = true;
       showIPStartTime = millis();
       reconnectAttempt = 0;
-      // mDNS再起動
+      // restart mDNS / mDNS再起動
       MDNS.end();
       if (MDNS.begin(CHARACTOR_ID)) {
         MDNS.addService("http", "tcp", 80);
@@ -1074,7 +1074,7 @@ void updateWifiState() {
     reconnectAttempt++;
     WiFi.disconnect();
     if (reconnectAttempt == 1) {
-      // ssid1: 家WiFi（固定IP）
+      // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
       IPAddress home_lip = ipFromPrefix(HOME_IP_BEGIN, HOME_IP_LAST);
       IPAddress home_gw  = ipFromPrefix(HOME_IP_BEGIN, 1);
       IPAddress home_sn(255, 255, 255, 0);
@@ -1082,21 +1082,21 @@ void updateWifiState() {
       WiFi.begin(ssid1, pass1);
       Serial.printf("[reconnect] trying WiFi1: %s\n", ssid1);
     } else {
-      // ssid2: 旅行用ルーター（固定IP）
+      // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
       IPAddress router_lip = ipFromPrefix(TRAVEL_IP_BEGIN, TRAVEL_IP_LAST);
       IPAddress router_gw  = ipFromPrefix(TRAVEL_IP_BEGIN, 1);
       IPAddress router_sn(255, 255, 255, 0);
       WiFi.config(router_lip, router_gw, router_sn);
       WiFi.begin(ssid2, pass2);
       Serial.printf("[reconnect] trying WiFi2: %s\n", ssid2);
-      reconnectAttempt = 0;  // リセット
+      reconnectAttempt = 0;  // reset / リセット
     }
   }
 }
 
 // ===================== UI =====================
 void drawWifiStatus() {
-  // 右上を白で確保（黒くしない）
+  // reserve the top-right area in the background color, avoid black / 右上を白で確保（黒くしない）
   const int x = 200;
   const int y = 0;
   CoreS3.Display.fillRect(x, y, 120, 18, currentBackgroundColor);
@@ -1113,7 +1113,7 @@ void drawIPIfNeeded() {
   if (!showIP) return;
 
   if (millis() - showIPStartTime < 30000) {
-    // 右下を白で上書き（黒帯にしない）
+    // overwrite the bottom-right area in the background color, avoid a black bar / 右下を白で上書き（黒帯にしない）
     CoreS3.Display.fillRect(0, 220, 320, 20, currentBackgroundColor);
     CoreS3.Display.setTextSize(1);
     CoreS3.Display.setTextColor(TFT_GREEN, currentBackgroundColor);
@@ -1178,7 +1178,7 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t lengt
     case WStype_CONNECTED:
       wsClientConnected = true;
       wsClientNum = num;
-      // マイクは MIC_START コマンドで明示的に起動する
+      // the mic is started explicitly via the MIC_START command / マイクは MIC_START コマンドで明示的に起動する
       break;
 
     case WStype_DISCONNECTED:
@@ -1197,7 +1197,7 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t lengt
       int samples = length / 2;
 
       if (samples > 1024) {
-        samples = 1024;  // 最大制限
+        samples = 1024;  // upper limit / 最大制限
       }
 
       int16_t* pcm = (int16_t*)payload;
@@ -1447,7 +1447,7 @@ void handleFace() {
     mouthValue = clampInt(server.arg("mouth").toInt(), 0, 100);
   }
 
-  // 5秒後に正面へ戻す
+  // return to center after 5 seconds / 5秒後に正面へ戻す
   eyeReturnTime = millis() + 5000;
   eyeAutoReturn = true;
 
@@ -1474,7 +1474,7 @@ void enableDrawFaceMode() {
 void enablePlayFaceMode() {
   currentFaceMode = FACE_JPEG;
   CoreS3.Display.fillScreen(currentBackgroundColor);
-  lastFaceChange = 0;   // ← すぐ次画像へ
+  lastFaceChange = 0;   // advance to the next image immediately / すぐ次画像へ
   server.send(200, "text/plain", "ok");
 }
 void handleHelp() {
@@ -1655,7 +1655,7 @@ void setup() {
     Serial.println("Face dir open failed: /face/");
   }
 
-  // Camera（失敗してもhaltしない）
+  // Camera (don't halt on failure) / Camera（失敗してもhaltしない）
   {
     bool camOk = false;
     for (int i = 0; i < 3 && !camOk; i++) {
@@ -1674,10 +1674,10 @@ void setup() {
   }
 
 
-  // WiFi（ssid1 → ssid2 のフォールバック）
+  // WiFi (falls back from ssid1 to ssid2) / WiFi（ssid1 → ssid2 のフォールバック）
   WiFi.mode(WIFI_STA);
 
-  // ssid1: 家WiFi（固定IP）
+  // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
   {
     Serial.printf("Trying WiFi1: %s\n", ssid1);
     WiFi.disconnect();
@@ -1694,7 +1694,7 @@ void setup() {
     Serial.println();
   }
 
-  // ssid2: 旅行用ルーター（固定IP）
+  // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
   if (WiFi.status() != WL_CONNECTED) {
     Serial.printf("WiFi1 failed, trying WiFi2: %s\n", ssid2);
     WiFi.disconnect();
@@ -1716,7 +1716,7 @@ void setup() {
     ipString = WiFi.localIP().toString();
     Serial.printf("WiFi connected: %s\n", ipString.c_str());
 
-    // mDNS: http://<CHARACTOR_ID>.local/ でアクセス可能に
+    // mDNS: accessible at http://<CHARACTOR_ID>.local/ / http://<CHARACTOR_ID>.local/ でアクセス可能に
     if (MDNS.begin(CHARACTOR_ID)) {
       MDNS.addService("http", "tcp", 80);
       MDNS.addService("ws", "tcp", 8080);
@@ -1725,7 +1725,7 @@ void setup() {
       Serial.println("mDNS failed");
     }
 
-    // NTP 時刻同期 (JST = UTC+9)
+    // NTP time sync (JST = UTC+9) / NTP 時刻同期
     configTime(9 * 3600, 0, "192.168.1.1", "192.168.8.1");
     Serial.println("NTP configured");
   } else {
@@ -1794,7 +1794,7 @@ void loop() {
 
   updateWifiState();
 
-  // 低バッテリー自動スリープ（10%以下、ただし0%=充電中は除外）
+  // auto-sleep on low battery (≤10%, but excludes 0% = charging) / 低バッテリー自動スリープ（10%以下、ただし0%=充電中は除外）
   if (!isSleeping && millis() - lastBatteryCheck > 30000) {
     lastBatteryCheck = millis();
     float bat = CoreS3.Power.getBatteryLevel();
@@ -1828,7 +1828,7 @@ void loop() {
   }
   if (blinking && (now - blinkStartTime) >= BLINK_DURATION) {
     blinking = false;
-    nextBlinkTime = now + random(2000, 6000);  // 次はランダム
+    nextBlinkTime = now + random(2000, 6000);  // next one is random / 次はランダム
   }
 
   if ((winkLeft || winkRight) && millis() > winkEndTime) {
@@ -1841,26 +1841,26 @@ void loop() {
     lastSensorSend = millis();
     sendSensorPacket();
   }
-  float smooth = 0.05;  // 小さいほどゆっくり
+  float smooth = 0.05;  // smaller = slower / 小さいほどゆっくり
 
   eyeCurrentX += (eyeTargetX - eyeCurrentX) * smooth;
   eyeCurrentY += (eyeTargetY - eyeCurrentY) * smooth;
 
-  // 5秒経ったら正面へ戻す
+  // return to center after 5 seconds / 5秒経ったら正面へ戻す
   if (eyeAutoReturn && millis() > eyeReturnTime) {
     eyeTargetX = 0;
     eyeTargetY = 0;
     eyeAutoReturn = false;
   }
 
-  // 設定画面：1分無操作で自動閉じ
+  // settings screen: auto-close after 1 minute idle / 設定画面：1分無操作で自動閉じ
   if (settingsVisible && millis() - settingsShowTime > 60000) {
     settingsVisible = false;
     faceDirty = true;
   }
 
   if (currentFaceMode == FACE_DRAW) {
-    unsigned long faceInterval = powerSaveMode ? 100 : 33;  // 省電力:10fps / 通常:30fps
+    unsigned long faceInterval = powerSaveMode ? 100 : 33;  // power-save: 10fps, normal: 30fps / 省電力:10fps・通常:30fps
     if (millis() - lastFaceDraw > faceInterval) {
       lastFaceDraw = millis();
       if (settingsVisible) {
@@ -1893,7 +1893,7 @@ void loop() {
 
   checkTouch();
 
-  // Mic streaming (WS接続時のみ。camera中はOFF)
+  // Mic streaming (only while a WS client is connected; off while camera is active) / Mic streaming (WS接続時のみ。camera中はOFF)
   if (requestPlaySound) {
     requestPlaySound = false;
     playWavFromSD(("/wav/" + pendingSoundName).c_str());
