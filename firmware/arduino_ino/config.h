@@ -1,7 +1,7 @@
 #pragma once
 
 // User name / ユーザー名定義
-#define USER_NAME   "arisan"
+#define USER_NAME   "yourname"
 
 // Character (device) name / ぷちの名前
 #define CHARACTOR_ID "puchi"
