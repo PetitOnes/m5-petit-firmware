@@ -1,0 +1,38 @@
+# M5 Petit config file
+# Rename this file to config.txt and put it on the SD card root.
+# このファイルを config.txt という名前にしてSDカードの一番上に置いてください。
+#
+# Lines starting with # are comments. Format: key=value (no quotes)
+# #で始まる行はコメントです。書き方: key=値 (クォート不要)
+
+# --- WiFi (required / 必須) ---
+# Your home WiFi name and password (2.4GHz)
+# 自宅WiFiの名前とパスワード (2.4GHz)
+ssid1=MyHomeWiFi
+pass1=mypassword
+
+# Travel router (optional — delete or leave empty if unused)
+# 旅行用ルーター (使わなければ空のままでOK)
+ssid2=
+pass2=
+
+# --- Names / 名前 ---
+# Your name, in alphabet / あなたの名前(アルファベット)
+user_name=yourname
+# Petit's name, in alphabet. Also used as the hostname: http://<charactor_id>.local/
+# ぷちの名前(アルファベット)。http://<charactor_id>.local/ のホスト名にもなります
+charactor_id=puchi
+
+# --- Network / ネットワーク ---
+# Static IP: first 3 octets and the last octet, for home WiFi
+# 家WiFiでの固定IP: 先頭3オクテットと末尾
+home_ip_begin=192.168.1
+home_ip_last=12
+# Same for the travel router / 旅行用ルーターでの固定IP
+travel_ip_begin=192.168.8
+travel_ip_last=100
+
+# --- Appearance / 見た目 ---
+# Face and background color (hex, no #) / 顔と背景の色 (16進、#なし)
+face_color=e68fac
+background_color=ffffff
