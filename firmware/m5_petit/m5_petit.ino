@@ -10,7 +10,74 @@
 #include <SD.h>
 #include <WebSocketsServer.h>
 
+// credentials.h is optional: without it, configure Wi-Fi via /config.txt on the SD card
+// credentials.h はオプション。無い場合はSDカードの /config.txt でWiFiを設定します
+#if __has_include("credentials.h")
 #include "credentials.h"
+#else
+const char* ssid1 = "";
+const char* pass1 = "";
+const char* ssid2 = "";
+const char* pass2 = "";
+#endif
+
+// ===================== Runtime config (SD: /config.txt) =====================
+// Values start from compile-time defaults (config.h / credentials.h) and are
+// overridden by /config.txt on the SD card at boot (key=value lines).
+// コンパイル時デフォルト(config.h / credentials.h)を初期値に、起動時にSDカードの
+// /config.txt (key=value形式) で上書きします。
+String cfgSsid1 = ssid1;
+String cfgPass1 = pass1;
+String cfgSsid2 = ssid2;
+String cfgPass2 = pass2;
+String cfgUserName = USER_NAME;
+String cfgCharactorId = CHARACTOR_ID;
+String cfgHomeIpBegin = HOME_IP_BEGIN;
+int    cfgHomeIpLast = HOME_IP_LAST;
+String cfgTravelIpBegin = TRAVEL_IP_BEGIN;
+int    cfgTravelIpLast = TRAVEL_IP_LAST;
+String cfgFaceColor = DEFAULT_FACE_COLOR;
+String cfgBackgroundColor = DEFAULT_BACKGROUND_COLOR;
+bool configLoadedFromSD = false;
+
+static void applyConfigLine(String line) {
+  line.trim();
+  if (line.length() == 0 || line.startsWith("#")) return;
+  int eq = line.indexOf('=');
+  if (eq <= 0) return;
+  String key = line.substring(0, eq);
+  String val = line.substring(eq + 1);
+  key.trim();
+  key.toLowerCase();
+  val.trim();
+  if      (key == "ssid1") cfgSsid1 = val;
+  else if (key == "pass1") cfgPass1 = val;
+  else if (key == "ssid2") cfgSsid2 = val;
+  else if (key == "pass2") cfgPass2 = val;
+  else if (key == "user_name") cfgUserName = val;
+  else if (key == "charactor_id") cfgCharactorId = val;
+  else if (key == "home_ip_begin") cfgHomeIpBegin = val;
+  else if (key == "home_ip_last") cfgHomeIpLast = val.toInt();
+  else if (key == "travel_ip_begin") cfgTravelIpBegin = val;
+  else if (key == "travel_ip_last") cfgTravelIpLast = val.toInt();
+  else if (key == "face_color") cfgFaceColor = val;
+  else if (key == "background_color") cfgBackgroundColor = val;
+  else Serial.printf("[config] unknown key: %s\n", key.c_str());
+}
+
+bool loadConfigFromSD() {
+  File f = SD.open("/config.txt");
+  if (!f) {
+    Serial.println("[config] /config.txt not found, using compiled defaults");
+    return false;
+  }
+  while (f.available()) {
+    applyConfigLine(f.readStringUntil('\n'));
+  }
+  f.close();
+  Serial.println("[config] loaded /config.txt");
+  return true;
+}
 
 // ===================== Files / SD =====================
 File faceDir;
@@ -85,7 +152,7 @@ volatile bool requestAudioEnd = false;
 String statusLabel = "";
 unsigned long statusLabelUntil = 0;
 bool micLoopMode = false;
-String camTarget = USER_NAME;
+String camTarget = "";  // set from cfgUserName in setup() / setup()でcfgUserNameから設定
 volatile bool requestPlaySound = false;
 volatile bool requestSleep = false;
 volatile bool requestWake = false;
@@ -1056,10 +1123,10 @@ void updateWifiState() {
       reconnectAttempt = 0;
       // restart mDNS / mDNS再起動
       MDNS.end();
-      if (MDNS.begin(CHARACTOR_ID)) {
+      if (MDNS.begin(cfgCharactorId.c_str())) {
         MDNS.addService("http", "tcp", 80);
         MDNS.addService("ws", "tcp", 8080);
-        Serial.printf("mDNS: %s.local\n", CHARACTOR_ID);
+        Serial.printf("mDNS: %s.local\n", cfgCharactorId.c_str());
       }
       playWavFromSD("/wav/success.wav");
     } else {
@@ -1073,23 +1140,25 @@ void updateWifiState() {
     lastReconnectTry = millis();
     reconnectAttempt++;
     WiFi.disconnect();
-    if (reconnectAttempt == 1) {
+    if (reconnectAttempt == 1 && cfgSsid1.length() > 0) {
       // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
-      IPAddress home_lip = ipFromPrefix(HOME_IP_BEGIN, HOME_IP_LAST);
-      IPAddress home_gw  = ipFromPrefix(HOME_IP_BEGIN, 1);
+      IPAddress home_lip = ipFromPrefix(cfgHomeIpBegin.c_str(), cfgHomeIpLast);
+      IPAddress home_gw  = ipFromPrefix(cfgHomeIpBegin.c_str(), 1);
       IPAddress home_sn(255, 255, 255, 0);
       WiFi.config(home_lip, home_gw, home_sn, home_gw);
-      WiFi.begin(ssid1, pass1);
-      Serial.printf("[reconnect] trying WiFi1: %s\n", ssid1);
-    } else {
+      WiFi.begin(cfgSsid1.c_str(), cfgPass1.c_str());
+      Serial.printf("[reconnect] trying WiFi1: %s\n", cfgSsid1.c_str());
+    } else if (cfgSsid2.length() > 0) {
       // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
-      IPAddress router_lip = ipFromPrefix(TRAVEL_IP_BEGIN, TRAVEL_IP_LAST);
-      IPAddress router_gw  = ipFromPrefix(TRAVEL_IP_BEGIN, 1);
+      IPAddress router_lip = ipFromPrefix(cfgTravelIpBegin.c_str(), cfgTravelIpLast);
+      IPAddress router_gw  = ipFromPrefix(cfgTravelIpBegin.c_str(), 1);
       IPAddress router_sn(255, 255, 255, 0);
       WiFi.config(router_lip, router_gw, router_sn);
-      WiFi.begin(ssid2, pass2);
-      Serial.printf("[reconnect] trying WiFi2: %s\n", ssid2);
+      WiFi.begin(cfgSsid2.c_str(), cfgPass2.c_str());
+      Serial.printf("[reconnect] trying WiFi2: %s\n", cfgSsid2.c_str());
       reconnectAttempt = 0;  // reset / リセット
+    } else {
+      reconnectAttempt = 0;  // nothing configured, keep cycling / 未設定ならリセットだけ
     }
   }
 }
@@ -1648,7 +1717,14 @@ void setup() {
     Serial.println("SD Init Failed");
   } else {
     Serial.println("SD Init OK");
+    // Load /config.txt (overrides compiled defaults) / 設定読み込み(コンパイル時デフォルトを上書き)
+    configLoadedFromSD = loadConfigFromSD();
   }
+
+  // Apply (possibly overridden) config / 読み込んだ設定を反映
+  camTarget = cfgUserName;
+  currentFaceColor = colorFromHex(cfgFaceColor.c_str());
+  currentBackgroundColor = colorFromHex(cfgBackgroundColor.c_str());
 
   faceDir = SD.open("/face/");
   if (!faceDir) {
@@ -1677,15 +1753,25 @@ void setup() {
   // WiFi (falls back from ssid1 to ssid2) / WiFi（ssid1 → ssid2 のフォールバック）
   WiFi.mode(WIFI_STA);
 
+  if (cfgSsid1.length() == 0 && cfgSsid2.length() == 0) {
+    // No Wi-Fi configured: guide the user to config.txt / WiFi未設定: config.txtへ誘導
+    Serial.println("No WiFi configured. Put config.txt on the SD card.");
+    CoreS3.Display.setTextColor(TFT_RED, currentBackgroundColor);
+    CoreS3.Display.println("WiFi not configured!");
+    CoreS3.Display.println("Put config.txt on the SD card.");
+    CoreS3.Display.println("SDカードに config.txt を");
+    CoreS3.Display.println("置いてください");
+  }
+
   // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
-  {
-    Serial.printf("Trying WiFi1: %s\n", ssid1);
+  if (cfgSsid1.length() > 0) {
+    Serial.printf("Trying WiFi1: %s\n", cfgSsid1.c_str());
     WiFi.disconnect();
-    IPAddress home_IP = ipFromPrefix(HOME_IP_BEGIN, HOME_IP_LAST);
-    IPAddress home_gw = ipFromPrefix(HOME_IP_BEGIN, 1);
+    IPAddress home_IP = ipFromPrefix(cfgHomeIpBegin.c_str(), cfgHomeIpLast);
+    IPAddress home_gw = ipFromPrefix(cfgHomeIpBegin.c_str(), 1);
     IPAddress home_sn(255, 255, 255, 0);
     WiFi.config(home_IP, home_gw, home_sn, home_gw);
-    WiFi.begin(ssid1, pass1);
+    WiFi.begin(cfgSsid1.c_str(), cfgPass1.c_str());
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
       delay(200);
@@ -1695,14 +1781,14 @@ void setup() {
   }
 
   // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.printf("WiFi1 failed, trying WiFi2: %s\n", ssid2);
+  if (WiFi.status() != WL_CONNECTED && cfgSsid2.length() > 0) {
+    Serial.printf("WiFi1 failed, trying WiFi2: %s\n", cfgSsid2.c_str());
     WiFi.disconnect();
-    IPAddress router_IP = ipFromPrefix(TRAVEL_IP_BEGIN, TRAVEL_IP_LAST);
-    IPAddress router_gw = ipFromPrefix(TRAVEL_IP_BEGIN, 1);
+    IPAddress router_IP = ipFromPrefix(cfgTravelIpBegin.c_str(), cfgTravelIpLast);
+    IPAddress router_gw = ipFromPrefix(cfgTravelIpBegin.c_str(), 1);
     IPAddress router_sn(255, 255, 255, 0);
     WiFi.config(router_IP, router_gw, router_sn);
-    WiFi.begin(ssid2, pass2);
+    WiFi.begin(cfgSsid2.c_str(), cfgPass2.c_str());
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
       delay(200);
@@ -1716,11 +1802,11 @@ void setup() {
     ipString = WiFi.localIP().toString();
     Serial.printf("WiFi connected: %s\n", ipString.c_str());
 
-    // mDNS: accessible at http://<CHARACTOR_ID>.local/ / http://<CHARACTOR_ID>.local/ でアクセス可能に
-    if (MDNS.begin(CHARACTOR_ID)) {
+    // mDNS: accessible at http://<charactor_id>.local/ / http://<charactor_id>.local/ でアクセス可能に
+    if (MDNS.begin(cfgCharactorId.c_str())) {
       MDNS.addService("http", "tcp", 80);
       MDNS.addService("ws", "tcp", 8080);
-      Serial.printf("mDNS: %s.local\n", CHARACTOR_ID);
+      Serial.printf("mDNS: %s.local\n", cfgCharactorId.c_str());
     } else {
       Serial.println("mDNS failed");
     }
