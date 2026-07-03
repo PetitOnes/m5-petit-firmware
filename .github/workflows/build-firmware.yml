@@ -49,7 +49,12 @@ jobs:
           mkdir -p _site/firmware
           cp web/index.html _site/
           sed "s/__VERSION__/${VERSION}/" web/manifest.json > _site/manifest.json
-          cp build/m5_petit.ino.merged.bin _site/firmware/m5_petit.merged.bin
+          # Flash as 4 parts (~1.5MB total) instead of the 16MB padded image
+          cp build/m5_petit.ino.bootloader.bin _site/firmware/bootloader.bin
+          cp build/m5_petit.ino.partitions.bin _site/firmware/partitions.bin
+          cp "$(find ~/.arduino15/packages/m5stack -name boot_app0.bin | head -1)" _site/firmware/boot_app0.bin
+          cp build/m5_petit.ino.bin _site/firmware/m5_petit.bin
+          ls -la _site/firmware/
           echo "built ${VERSION}"
 
       - name: Upload Pages artifact
