@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M5 Petit — ブラウザから書き込み / Web Flasher</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      max-width: 640px; margin: 0 auto; padding: 24px 16px; line-height: 1.7;
+    }
+    h1 { font-size: 1.4rem; }
+    .card {
+      border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+      border-radius: 12px; padding: 16px 20px; margin: 16px 0;
+    }
+    .flash { text-align: center; padding: 28px 20px; }
+    ol { padding-left: 1.4em; }
+    li { margin: 6px 0; }
+    .note { font-size: 0.9rem; opacity: 0.8; }
+    a { color: inherit; }
+    esp-web-install-button::part(button) { font-size: 1.05rem; padding: 10px 22px; }
+  </style>
+</head>
+<body>
+  <h1>🤖 M5 Petit — ブラウザから書き込み</h1>
+  <p>
+    M5Stack CoreS3にぷちのファームウェアを書き込みます。Arduino IDEのインストールは不要です。<br>
+    <span class="note">Flash the M5 Petit firmware to your M5Stack CoreS3 — no Arduino IDE needed.</span>
+  </p>
+
+  <div class="card">
+    <strong>用意するもの / You need</strong>
+    <ol>
+      <li>M5Stack CoreS3 と USB-Cケーブル（データ通信対応のもの） / and a USB-C data cable</li>
+      <li>Chrome または Edge ブラウザ（Safari・Firefoxは非対応） / Chrome or Edge (Safari & Firefox are not supported)</li>
+    </ol>
+  </div>
+
+  <div class="card flash">
+    <p><strong>1.</strong> CoreS3をUSBでPCにつなぐ / Connect the CoreS3 via USB</p>
+    <p><strong>2.</strong> ボタンを押してポートを選ぶ / Click and pick the serial port</p>
+    <esp-web-install-button manifest="./manifest.json"></esp-web-install-button>
+    <p class="note">初めての書き込みでは「Erase device」にチェックを入れてください / Check "Erase device" on first install</p>
+  </div>
+
+  <div class="card">
+    <strong>書き込みが終わったら / After flashing</strong>
+    <p>
+      SDカードに<code>config.txt</code>（WiFi設定など）と顔・音のファイルを入れて、CoreS3に挿してください。
+      手順はセットアップガイドへ：<br>
+      <span class="note">Put <code>config.txt</code> (WiFi settings etc.) and the face/sound files on the SD card, then insert it. See the setup guide:</span>
+    </p>
+    <p>→ <a href="https://github.com/PetitOnes/m5-petit-scripts/blob/main/HOW_TO_SETUP_M5_CORES3.md">M5Stack CoreS3 セットアップ手順 / Setup Guide</a></p>
+  </div>
+
+  <p class="note">
+    うまくいかないとき: ケーブルが充電専用でないか確認 / ポートが出ないときはドライバ不要のはずですがOSを再起動してみてください。<br>
+    <a href="https://github.com/PetitOnes/m5-petit-scripts">PetitOnes/m5-petit-scripts</a> — Building Embodied AI together.
+  </p>
+</body>
+</html>

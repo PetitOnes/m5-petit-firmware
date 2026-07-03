@@ -1,0 +1,69 @@
+name: Build firmware & deploy web flasher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "m5_core_s3_scripts/**"
+      - "web/**"
+      - ".github/workflows/build-firmware.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup arduino-cli
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core (M5Stack)
+        run: |
+          arduino-cli core update-index --additional-urls https://static-cdn.m5stack.com/resource/arduino/package_m5stack_index.json
+          arduino-cli core install m5stack:esp32@3.2.6 --additional-urls https://static-cdn.m5stack.com/resource/arduino/package_m5stack_index.json
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "M5CoreS3@1.0.1" "M5Unified@0.2.17" "M5GFX@0.2.24" "WebSockets@2.4.0"
+
+      - name: Compile
+        run: |
+          arduino-cli compile \
+            --fqbn m5stack:esp32:m5stack_cores3 \
+            --build-path "$PWD/build" \
+            m5_core_s3_scripts/m5_petit
+
+      - name: Assemble site
+        run: |
+          VERSION="$(date +%Y.%m.%d)-${GITHUB_SHA::7}"
+          mkdir -p _site/firmware
+          cp web/index.html _site/
+          sed "s/__VERSION__/${VERSION}/" web/manifest.json > _site/manifest.json
+          cp build/m5_petit.ino.merged.bin _site/firmware/m5_petit.merged.bin
+          echo "built ${VERSION}"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
