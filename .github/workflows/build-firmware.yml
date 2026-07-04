@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "m5_core_s3_scripts/**"
+      - "firmware/**"
       - "web/**"
       - ".github/workflows/build-firmware.yml"
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
           arduino-cli compile \
             --fqbn m5stack:esp32:m5stack_cores3 \
             --build-path "$PWD/build" \
-            m5_core_s3_scripts/m5_petit
+            firmware/m5_petit
 
       - name: Assemble site
         run: |
