@@ -46,7 +46,7 @@ background_color=ffffff
 
 書けたら`config.txt`をSDカードの一番上(ルート)に置きます(SDカードの準備は手順3でまとめてやってもOK)。
 
-> 💡 **開発者向け:** 従来どおりコンパイル時に埋め込むこともできます。`m5_core_s3_scripts/m5_petit/credentials.example.h`を`credentials.h`にコピーしてWiFi情報を書き、`config.h`を編集してください。SDカードに`config.txt`がある場合はそちらが優先されます。
+> 💡 **開発者向け:** 従来どおりコンパイル時に埋め込むこともできます。`firmware/m5_petit/credentials.example.h`を`credentials.h`にコピーしてWiFi情報を書き、`config.h`を編集してください。SDカードに`config.txt`がある場合はそちらが優先されます。
 
 ---
 
@@ -58,7 +58,7 @@ background_color=ffffff
 
 ChromeまたはEdgeで書き込みページを開き、CoreS3をUSBでつないでボタンを押すだけです。Arduino IDEのインストールは不要です。
 
-**→ [M5 Petit Web Flasher](https://petitones.github.io/m5-petit-scripts/)**
+**→ [M5 Petit Web Flasher](https://petitones.github.io/m5-petit-firmware/)**
 
 🎬 実際の書き込みの流れは[インストール動画](./videos/install_via_webpage.mp4)を参考にしてください。
 
@@ -90,8 +90,7 @@ chmod +x arduino-ide_2.3.10_Linux_64bit.AppImage
 
 #### 2-1. ボード追加
 
-
-
+![環境設定を開く](img/image-0.png)
 
 ファイル > 環境設定 > 追加のボードマネージャURL に追加：
 
@@ -107,21 +106,16 @@ https://static-cdn.m5stack.com/resource/arduino/package_m5stack_index.json
 
 #### 2-2. ライブラリインストール
 
+CIビルドで動作確認しているバージョン：
+
 - M5CoreS3 (1.0.1)
-- M5Stack (0.4.6)
-- M5Unified (0.2.13)
-- SD (1.3.0)
-- [WebSockets by Links2004](https://github.com/Links2004/arduinoWebSockets)（ZIPダウンロードして追加）
+- M5Unified (0.2.17)
+- M5GFX (0.2.24)
+- WebSockets by Links2004 (2.4.0)
 
 #### 2-3. 書き込み
 
-キャラクターごとの .ino を Arduino IDE で開いて書き込む：
-
-- `m5_script/m5_petit_puchiteya/m5_petit_puchiteya.ino`
-- `m5_script/m5_petit_puchiko/m5_petit_puchiko.ino`
-- `m5_script/m5_petit_puchiru/m5_petit_puchiru.ino`
-
-それぞれ対応する M5CoreS3 を USB 接続した状態で「マイコンボードに書き込む」を実行。
+`firmware/m5_petit/m5_petit.ino` を Arduino IDE で開き、M5CoreS3 を USB 接続した状態で「マイコンボードに書き込む」を実行。
 
 
 ### 3.SDカード準備
