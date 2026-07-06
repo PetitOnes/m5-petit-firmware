@@ -22,21 +22,9 @@
     .note { font-size: 0.9rem; opacity: 0.8; }
     a { color: inherit; }
     esp-web-install-button::part(button) { font-size: 1.05rem; padding: 10px 22px; }
-    input[type=text] {
-      font-size: 1rem; padding: 8px; border-radius: 6px;
-      border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
-      background: transparent; color: inherit; width: 100%; box-sizing: border-box;
-    }
-    button.pushbtn {
-      font-size: 1rem; padding: 10px 16px; border-radius: 8px; border: none;
-      background: #4a9; color: #000; margin-top: 8px;
-    }
-    button.pushbtn:disabled { opacity: 0.4; }
-    input[type=file] { margin-top: 8px; width: 100%; }
-    .row { margin: 8px 0; }
-    #assetLog {
-      font-size: 0.8rem; white-space: pre-wrap; background: color-mix(in srgb, currentColor 6%, transparent);
-      border-radius: 8px; padding: 10px; margin-top: 12px; max-height: 30vh; overflow-y: auto;
+    code {
+      background: color-mix(in srgb, currentColor 8%, transparent);
+      padding: 1px 5px; border-radius: 4px;
     }
   </style>
 </head>
@@ -77,107 +65,21 @@
   <div class="card">
     <strong>3. SDアセット送信（任意） / Push SD assets (optional)</strong>
     <p>
-      顔画像・効果音をSDカードに入れたい場合、ここから直接送れます。空のFAT32 SDカードをM5に挿しておいてください。<br>
-      <span class="note">If you want custom face images / sounds on the SD card, push them right here. Insert an empty FAT32 SD card into the M5 first.</span>
+      顔画像・効果音を使いたい場合、空のFAT32 SDカードをM5に挿したまま、スマホ/PCのブラウザで下のURLを開いてください（ボタンひとつで標準セットが入ります）：<br>
+      <span class="note">If you want custom face images / sounds, insert an empty FAT32 SD card into the M5, then open the URL below in a phone/PC browser (one button installs the default set):</span>
     </p>
     <p class="note">
-      送信先IP: 手順2完了直後は画面右下（30秒間）に緑色で表示されます。またはキャラクターID（ホスト名）で <code>&lt;キャラクターID&gt;.local</code> でも指定できます。<br>
-      Target: right after step 2, the IP shows in green in the bottom-right corner of the screen for 30s. Or use the hostname, <code>&lt;character-id&gt;.local</code>.
+      <code>http://&lt;M5のIP または キャラクターID&gt;.local/assets</code><br>
+      IPは手順2完了直後、画面右下（30秒間）に緑色で表示されます。<br>
+      The IP shows in green in the bottom-right corner of the screen for 30s right after step 2.
     </p>
-    <div class="row">
-      <input type="text" id="targetIp" placeholder="192.168.1.109 または puchi.local">
-    </div>
-    <button class="pushbtn" id="btnDefault">標準アセットを入れる / Install defaults</button>
-    <p class="note" style="margin-top:14px">自分の.jpg/.wavファイルを送る場合 / To upload your own .jpg/.wav files:</p>
-    <input type="file" id="filePick" multiple accept=".jpg,.wav">
-    <button class="pushbtn" id="btnUpload">選んだファイルを送信 / Upload selected</button>
-    <div id="assetLog"></div>
+    <p class="note">
+      ※このページ(<code>https://petitones.github.io</code>)からM5へ直接送る形は、HTTPS→HTTPの通信をブラウザがブロックする（Mixed Content）ため動作しません。M5自身が配信するページ（HTTP同士）からなら送れます。<br>
+      Note: pushing directly from this page doesn't work -- browsers block HTTPS→HTTP requests (mixed content). The M5's own page (HTTP-to-HTTP) works fine.
+    </p>
   </div>
 
   <p class="note">→ 全ての設定項目・API仕様は <a href="https://github.com/PetitOnes/m5-petit-firmware/blob/main/HOW_TO_SETUP_M5_CORES3.md">セットアップガイド / Full Setup Guide</a> へ</p>
-
-  <script>
-    const ZIP_URL = 'https://raw.githubusercontent.com/PetitOnes/m5-petit-firmware/main/sd.zip';
-    const alog = (m) => {
-      const el = document.getElementById('assetLog');
-      el.textContent += m + '\n';
-      el.scrollTop = el.scrollHeight;
-    };
-    const targetBase = () => {
-      const v = document.getElementById('targetIp').value.trim();
-      if (!v) throw new Error('送信先IPを入力してください / enter a target IP first');
-      return 'http://' + v;
-    };
-    async function unzipAssets(buf) {
-      const dv = new DataView(buf), u8 = new Uint8Array(buf);
-      let eocd = -1;
-      for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 22 - 65536); i--) {
-        if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-      }
-      if (eocd < 0) throw new Error('zip: EOCD not found');
-      const count = dv.getUint16(eocd + 10, true);
-      let off = dv.getUint32(eocd + 16, true);
-      const out = [];
-      for (let n = 0; n < count; n++) {
-        if (dv.getUint32(off, true) !== 0x02014b50) throw new Error('zip: bad central directory');
-        const method = dv.getUint16(off + 10, true);
-        const csize = dv.getUint32(off + 20, true);
-        const nlen = dv.getUint16(off + 28, true);
-        const elen = dv.getUint16(off + 30, true);
-        const clen = dv.getUint16(off + 32, true);
-        const lho = dv.getUint32(off + 42, true);
-        const name = new TextDecoder().decode(u8.subarray(off + 46, off + 46 + nlen));
-        const lnlen = dv.getUint16(lho + 26, true), lelen = dv.getUint16(lho + 28, true);
-        const comp = buf.slice(lho + 30 + lnlen + lelen, lho + 30 + lnlen + lelen + csize);
-        if (!name.endsWith('/')) {
-          let data;
-          if (method === 0) data = comp;
-          else if (method === 8) data = await new Response(new Blob([comp]).stream()
-            .pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
-          else { off += 46 + nlen + elen + clen; continue; }
-          out.push({ name, data });
-        }
-        off += 46 + nlen + elen + clen;
-      }
-      return out;
-    }
-    async function uploadOne(name, data) {
-      const base = name.split('/').pop(), lower = base.toLowerCase();
-      const ep = lower.endsWith('.jpg') ? '/upload_face' : lower.endsWith('.wav') ? '/upload_wav' : null;
-      if (!ep) { alog('  skip: ' + name); return true; }
-      const fd = new FormData();
-      fd.append('file', new Blob([data]), base);
-      try {
-        const r = await fetch(targetBase() + ep, { method: 'POST', body: fd });
-        alog((r.ok ? '  ok: ' : '  FAILED: ') + base);
-        return r.ok;
-      } catch (e) { alog('  FAILED: ' + base + ' (' + e.message + ')'); return false; }
-    }
-    async function withButtons(fn) {
-      const btns = [document.getElementById('btnDefault'), document.getElementById('btnUpload')];
-      btns.forEach(b => b.disabled = true);
-      try { await fn(); } catch (e) { alog('error: ' + e.message); }
-      btns.forEach(b => b.disabled = false);
-    }
-    document.getElementById('btnDefault').onclick = () => withButtons(async () => {
-      targetBase();  // validate IP filled in before fetching anything
-      alog('GitHubから取得中... / fetching sd.zip ...');
-      const buf = await (await fetch(ZIP_URL)).arrayBuffer();
-      alog('展開中... / unzipping (' + buf.byteLength + ' bytes)');
-      const entries = await unzipAssets(buf);
-      let fail = 0;
-      for (const e of entries) { if (!await uploadOne(e.name, e.data)) fail++; }
-      alog(fail === 0 ? '完了 / done' : '完了（失敗 ' + fail + ' 件）/ done with ' + fail + ' failure(s)');
-    });
-    document.getElementById('btnUpload').onclick = () => withButtons(async () => {
-      targetBase();
-      const files = document.getElementById('filePick').files;
-      if (!files.length) { alog('ファイルが選ばれていません / no files selected'); return; }
-      let fail = 0;
-      for (const f of files) { if (!await uploadOne(f.name, await f.arrayBuffer())) fail++; }
-      alog(fail === 0 ? '完了 / done' : '完了（失敗 ' + fail + ' 件）/ done with ' + fail + ' failure(s)');
-    });
-  </script>
 
   <p class="note">
     うまくいかないとき: ケーブルが充電専用でないか確認 / ポートが出ないときはドライバ不要のはずですがOSを再起動してみてください。<br>
