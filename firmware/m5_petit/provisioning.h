@@ -11,11 +11,13 @@ struct PetitConfig {
   String ssid1, pass1;
   String ssid2, pass2;
   String ssid3, pass3;
+  String ip1, ip2;         // optional static IP per WiFi slot, blank = DHCP / WiFi枠ごとの固定IP（空=DHCP）
   String charactorId;      // also used as mDNS hostname / mDNSホスト名にも使用
   String displayName;      // shown on the on-device settings screen / 設定画面に表示
   String faceColor;        // "RRGGBB", no leading '#'
   String backgroundColor;  // "RRGGBB", no leading '#'
-  String serverIp;         // dashboard / voice API host, optional / ダッシュボード・音声APIのIP（任意）
+  String serverIp;         // dashboard host, optional / ダッシュボードのIP（任意）
+  String voiceIp;          // voice API host when the GPU machine is separate, blank = same as serverIp / 音声API（GPU機が別PCの場合。空=serverIpと同じ）
   bool   migratedFromSd = false;
 };
 

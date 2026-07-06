@@ -119,11 +119,14 @@ bool loadFromNvs(PetitConfig& out) {
     out.pass2          = prefs.getString("wifi2_pass", "");
     out.ssid3          = prefs.getString("wifi3_ssid", "");
     out.pass3          = prefs.getString("wifi3_pass", "");
+    out.ip1            = prefs.getString("wifi1_ip", "");
+    out.ip2            = prefs.getString("wifi2_ip", "");
     out.charactorId    = prefs.getString("charactor_id", CHARACTOR_ID);
     out.displayName    = prefs.getString("display_name", USER_NAME);
     out.faceColor      = prefs.getString("face_color", DEFAULT_FACE_COLOR);
     out.backgroundColor = prefs.getString("bg_color", DEFAULT_BACKGROUND_COLOR);
     out.serverIp       = prefs.getString("server_ip", "");
+    out.voiceIp        = prefs.getString("voice_ip", "");
   }
   prefs.end();
   return valid;
@@ -137,11 +140,14 @@ void saveToNvs(const PetitConfig& in) {
   prefs.putString("wifi2_pass", in.pass2);
   prefs.putString("wifi3_ssid", in.ssid3);
   prefs.putString("wifi3_pass", in.pass3);
+  prefs.putString("wifi1_ip", in.ip1);
+  prefs.putString("wifi2_ip", in.ip2);
   prefs.putString("charactor_id", in.charactorId);
   prefs.putString("display_name", in.displayName);
   prefs.putString("face_color", in.faceColor);
   prefs.putString("bg_color", in.backgroundColor);
   prefs.putString("server_ip", in.serverIp);
+  prefs.putString("voice_ip", in.voiceIp);
   prefs.putBool("cfg_valid", true);
   prefs.end();
 }
@@ -282,13 +288,17 @@ String buildDatalistHtml() {
 }
 
 String wifiFieldsHtml(const char* label, const char* nameSsid, const char* namePass,
-                       const String& ssidVal, bool required) {
+                       const String& ssidVal, bool required,
+                       const char* nameIp, const String& ipVal) {
   String h;
   h += "<div class=\"row\"><label>" + String(label) + "</label>";
   h += "<input type=\"text\" name=\"" + String(nameSsid) + "\" list=\"ssids\" value=\"" +
        htmlEscape(ssidVal) + "\"" + (required ? " required" : "") + " placeholder=\"SSID\">";
   h += "<input type=\"password\" name=\"" + String(namePass) +
-       "\" placeholder=\"Password / パスワード\" autocomplete=\"off\"></div>";
+       "\" placeholder=\"Password / パスワード\" autocomplete=\"off\">";
+  h += "<input type=\"text\" name=\"" + String(nameIp) + "\" value=\"" + htmlEscape(ipVal) +
+       "\" placeholder=\"\xE5\x9B\xBA\xE5\xAE\x9AIP\xEF\xBC\x88\xE4\xBB\xBB\xE6\x84\x8F\xE3\x80\x81\xE7\xA9\xBA\xE6\xAC\x84=\xE8\x87\xAA\xE5\x8B\x95\xEF\xBC\x89 / Static IP (optional)\" "
+       "pattern=\"^$|^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$\"></div>";
   return h;
 }
 
@@ -304,6 +314,9 @@ String buildFormPage(const String& errorMsg) {
   h += "label{font-size:0.85rem;opacity:0.85}";
   h += "input{font-size:1rem;padding:8px;border-radius:6px;border:1px solid #555;background:#222;color:#eee;width:100%;box-sizing:border-box}";
   h += "input[type=color]{padding:2px;height:38px}";
+  h += ".swatches{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0}";
+  h += ".swatches button{width:34px;height:34px;border-radius:8px;border:1px solid #666;"
+       "padding:0;margin:0;flex:none}";
   h += "button{font-size:1.05rem;padding:12px;border-radius:8px;border:none;background:#4a9;color:#000;width:100%;margin-top:18px}";
   h += ".err{background:#622;border:1px solid #a55;padding:8px;border-radius:6px;margin:10px 0}";
   h += ".hint{font-size:0.78rem;opacity:0.7}";
@@ -318,18 +331,31 @@ String buildFormPage(const String& errorMsg) {
   h += buildDatalistHtml();
 
   h += "<h2>WiFi</h2>";
-  h += "<p class=\"hint\">WiFi 1は必須。2・3は任意（この順にフォールバック接続）。<br>"
-       "WiFi 1 is required. 2 &amp; 3 are optional (tried in this order).</p>";
+  h += "<p class=\"hint\">WiFi 1は必須、WiFi 2は任意（1→2の順に接続を試します）。<br>"
+       "外出用ルーターを使う場合はWiFi 1に外出用、WiFi 2に家のWiFiを。家だけなら1だけでOK。<br>"
+       "WiFi 1 is required, WiFi 2 optional (tried in this order).<br>"
+       "If you carry a travel router, put it in WiFi 1 and your home WiFi in 2.</p>";
   h += wifiFieldsHtml("WiFi 1 (必須 / required)", "wifi1_ssid", "wifi1_pass", g_formCfg.ssid1, true);
   h += wifiFieldsHtml("WiFi 2 (任意 / optional)", "wifi2_ssid", "wifi2_pass", g_formCfg.ssid2, false);
-  h += wifiFieldsHtml("WiFi 3 (任意 / optional)", "wifi3_ssid", "wifi3_pass", g_formCfg.ssid3, false);
 
   h += "<h2>キャラクター / Character</h2>";
   h += "<div class=\"row\"><label>キャラクターID（ホスト名にも使用） / Character ID (also used as hostname)</label>";
   h += "<input type=\"text\" name=\"charactor_id\" value=\"" + htmlEscape(g_formCfg.charactorId) + "\" required></div>";
   h += "<div class=\"row\"><label>表示名 / Display name</label>";
   h += "<input type=\"text\" name=\"display_name\" value=\"" + htmlEscape(g_formCfg.displayName) + "\"></div>";
-  h += "<div class=\"row\"><label>顔の色 / Face color</label>";
+  h += "<div class=\"row\"><label>顔の色（明るい色がおすすめ） / Face color (bright colors recommended)</label>";
+  // Bright preset swatches: dark faces are hard to see on the device's black background.
+  // 明るい色のプリセット（本体の黒背景では暗い色が見えづらいため）
+  h += "<div class=\"swatches\">";
+  static const char* kBrightPresets[] = {
+      "fff262", "ffcf87", "ffb3c8", "ff9de2",
+      "a8ff9e", "87e8ff", "00e0d0", "cab8d9",
+  };
+  for (const char* c : kBrightPresets) {
+    h += "<button type=\"button\" style=\"background:#" + String(c) + "\" "
+         "onclick=\"document.getElementsByName('face_color')[0].value='#" + String(c) + "'\"></button>";
+  }
+  h += "</div>";
   h += "<input type=\"color\" name=\"face_color\" value=\"#" + htmlEscape(g_formCfg.faceColor) + "\"></div>";
   h += "<div class=\"row\"><label>背景色 / Background color</label>";
   h += "<input type=\"color\" name=\"bg_color\" value=\"#" + htmlEscape(g_formCfg.backgroundColor) + "\"></div>";
@@ -338,6 +364,9 @@ String buildFormPage(const String& errorMsg) {
   h += "<div class=\"row\"><label>サーバーIP（ダッシュボード・音声API） / Server IP (dashboard &amp; voice API)</label>";
   h += "<input type=\"text\" name=\"server_ip\" value=\"" + htmlEscape(g_formCfg.serverIp) +
        "\" placeholder=\"192.168.1.10 (任意 / optional)\"></div>";
+  h += "<div class=\"row\"><label>音声サーバーIP（GPU機が別PCの場合のみ） / Voice server IP (only if the GPU machine is separate)</label>";
+  h += "<input type=\"text\" name=\"voice_ip\" value=\"" + htmlEscape(g_formCfg.voiceIp) +
+       "\" placeholder=\"空欄=サーバーIPと同じ / blank = same as server IP\"></div>";
 
   h += "<button type=\"submit\">保存して再起動 / Save &amp; Reboot</button>";
   h += "</form>";
@@ -373,6 +402,23 @@ void handleSave() {
   in.pass2 = portalServer.arg("wifi2_pass");
   in.ssid3 = portalServer.arg("wifi3_ssid");
   in.pass3 = portalServer.arg("wifi3_pass");
+  String ip1 = portalServer.arg("wifi1_ip");
+  String ip2 = portalServer.arg("wifi2_ip");
+  ip1.trim();
+  ip2.trim();
+  IPAddress ipCheck;
+  if (ip1.length() > 0 && !ipCheck.fromString(ip1)) {
+    portalServer.send(200, "text/html",
+                       buildFormPage("WiFi 1 の固定IPが不正です / invalid static IP for WiFi 1"));
+    return;
+  }
+  if (ip2.length() > 0 && !ipCheck.fromString(ip2)) {
+    portalServer.send(200, "text/html",
+                       buildFormPage("WiFi 2 の固定IPが不正です / invalid static IP for WiFi 2"));
+    return;
+  }
+  in.ip1 = ip1;
+  in.ip2 = ip2;
   in.charactorId = sanitizeId(portalServer.arg("charactor_id"),
                                g_formCfg.charactorId.length() ? g_formCfg.charactorId : CHARACTOR_ID);
   String dispName = portalServer.arg("display_name");
@@ -382,6 +428,9 @@ void handleSave() {
   in.backgroundColor = sanitizeHexColor(portalServer.arg("bg_color"), g_formCfg.backgroundColor);
   String srvIp = portalServer.arg("server_ip");
   srvIp.trim();
+  String vIp = portalServer.arg("voice_ip");
+  vIp.trim();
+  in.voiceIp = vIp;
   in.serverIp = srvIp;
 
   saveToNvs(in);

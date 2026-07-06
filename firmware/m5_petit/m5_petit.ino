@@ -29,9 +29,11 @@ String cfgCharactorId;
 String cfgFaceColor;
 String cfgBackgroundColor;
 String cfgServerIp;
+String cfgVoiceIp;
+String cfgIp1, cfgIp2;  // optional static IP per WiFi slot / WiFi枠ごとの固定IP（空=DHCP）
 bool configLoadedFromSD = false;  // true if this boot migrated a legacy SD /config.txt into NVS / このブートでSDの旧config.txtをNVSへ移行した場合true
 
-struct WifiCandidate { String ssid; String pass; };
+struct WifiCandidate { String ssid; String pass; String ip; };
 WifiCandidate wifiCandidates[3];
 int wifiCandidateCount = 0;
 
@@ -41,9 +43,23 @@ int wifiCandidateCount = 0;
 // cfgSsid1〜3・cfgPass1〜3を読み込んだ後に一度呼ぶこと。
 void buildWifiCandidates() {
   wifiCandidateCount = 0;
-  if (cfgSsid1.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid1, cfgPass1 };
-  if (cfgSsid2.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid2, cfgPass2 };
-  if (cfgSsid3.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid3, cfgPass3 };
+  if (cfgSsid1.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid1, cfgPass1, cfgIp1 };
+  if (cfgSsid2.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid2, cfgPass2, cfgIp2 };
+  if (cfgSsid3.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid3, cfgPass3, String() };
+}
+
+// Apply the candidate's static IP before WiFi.begin, or fall back to DHCP.
+// Gateway/DNS are assumed to be x.y.z.1 with a /24 mask (typical home router).
+// WiFi.begin前に候補の固定IPを適用（空ならDHCP）。ゲートウェイ/DNSはx.y.z.1・/24前提。
+void applyCandidateIpConfig(const WifiCandidate& c) {
+  IPAddress ip;
+  if (c.ip.length() > 0 && ip.fromString(c.ip)) {
+    IPAddress gw(ip[0], ip[1], ip[2], 1);
+    WiFi.config(ip, gw, IPAddress(255, 255, 255, 0), gw);
+    Serial.printf("[wifi] static IP %s (gw %s)\n", c.ip.c_str(), gw.toString().c_str());
+  } else {
+    WiFi.config(IPAddress((uint32_t)0), IPAddress((uint32_t)0), IPAddress((uint32_t)0));  // DHCP
+  }
 }
 
 // ===================== Files / SD =====================
@@ -1103,6 +1119,7 @@ void updateWifiState() {
       // Cycle through the configured WiFi candidates in order (DHCP). / 設定済みWiFi候補を順に試す(DHCP)。
       int idx = reconnectAttempt % wifiCandidateCount;
       WiFi.disconnect();
+      applyCandidateIpConfig(wifiCandidates[idx]);
       WiFi.begin(wifiCandidates[idx].ssid.c_str(), wifiCandidates[idx].pass.c_str());
       Serial.printf("[reconnect] trying WiFi%d: %s\n", idx + 1, wifiCandidates[idx].ssid.c_str());
       reconnectAttempt++;
@@ -1675,11 +1692,13 @@ void setup() {
   cfgSsid1 = pcfg.ssid1;  cfgPass1 = pcfg.pass1;
   cfgSsid2 = pcfg.ssid2;  cfgPass2 = pcfg.pass2;
   cfgSsid3 = pcfg.ssid3;  cfgPass3 = pcfg.pass3;
+  cfgIp1 = pcfg.ip1;      cfgIp2 = pcfg.ip2;
   cfgUserName        = pcfg.displayName;
   cfgCharactorId     = pcfg.charactorId;
   cfgFaceColor       = pcfg.faceColor;
   cfgBackgroundColor = pcfg.backgroundColor;
   cfgServerIp        = pcfg.serverIp;
+  cfgVoiceIp         = pcfg.voiceIp.length() > 0 ? pcfg.voiceIp : pcfg.serverIp;
   configLoadedFromSD = pcfg.migratedFromSd;
   buildWifiCandidates();
 
@@ -1730,6 +1749,7 @@ void setup() {
   for (int i = 0; i < wifiCandidateCount && WiFi.status() != WL_CONNECTED; i++) {
     Serial.printf("Trying WiFi%d: %s\n", i + 1, wifiCandidates[i].ssid.c_str());
     WiFi.disconnect();
+    applyCandidateIpConfig(wifiCandidates[i]);
     WiFi.begin(wifiCandidates[i].ssid.c_str(), wifiCandidates[i].pass.c_str());
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {

@@ -48,7 +48,7 @@ Two ways to flash:
 2. Scan the QR with your phone's camera and join the `M5Petit-XXXX` WiFi network.
 3. The setup page should open automatically (a captive-portal prompt). If it doesn't, open `http://192.168.4.1` in a browser.
 4. Fill in:
-   - WiFi 1 (required), WiFi 2, WiFi 3 (both optional -- tried in this order as a fallback)
+   - WiFi 1 (required) and WiFi 2 (optional -- tried in this order as a fallback). If you carry a travel router, put it in WiFi 1 and your home WiFi in 2
    - Character ID (also used as the hostname) and display name
    - Face color and background color
    - Server IP (dashboard / voice API), optional
@@ -63,6 +63,18 @@ To re-enter setup later, **touch and hold the screen for 3 seconds** right after
 ### 3. SD card (optional)
 
 The SD card now holds **only non-secret assets** -- face images and sound effects. **The device boots, connects to WiFi, and can be set up without an SD card at all** (you'll just be missing face animations / sound effects).
+
+#### Option A: push over WiFi (recommended -- no PC card reader needed)
+
+With an empty FAT32 SD card inserted in the M5, after finishing step 2 run:
+
+```bash
+python3 tools/push_sd_assets.py <M5 IP address>
+```
+
+This uploads the bundled default assets (7 faces, 12 sounds) to the M5's SD card over WiFi. Use `--assets <dir>` (containing face/ and wav/) for custom assets.
+
+#### Option B: copy to the SD card directly
 
 Unzip this repo's [`sd.zip`](./sd.zip) onto the root of a FAT32 SD card:
 
