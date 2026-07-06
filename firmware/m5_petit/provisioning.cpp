@@ -335,8 +335,10 @@ String buildFormPage(const String& errorMsg) {
        "外出用ルーターを使う場合はWiFi 1に外出用、WiFi 2に家のWiFiを。家だけなら1だけでOK。<br>"
        "WiFi 1 is required, WiFi 2 optional (tried in this order).<br>"
        "If you carry a travel router, put it in WiFi 1 and your home WiFi in 2.</p>";
-  h += wifiFieldsHtml("WiFi 1 (必須 / required)", "wifi1_ssid", "wifi1_pass", g_formCfg.ssid1, true);
-  h += wifiFieldsHtml("WiFi 2 (任意 / optional)", "wifi2_ssid", "wifi2_pass", g_formCfg.ssid2, false);
+  h += wifiFieldsHtml("WiFi 1 (必須 / required)", "wifi1_ssid", "wifi1_pass", g_formCfg.ssid1, true,
+                      "wifi1_ip", g_formCfg.ip1);
+  h += wifiFieldsHtml("WiFi 2 (任意 / optional)", "wifi2_ssid", "wifi2_pass", g_formCfg.ssid2, false,
+                      "wifi2_ip", g_formCfg.ip2);
 
   h += "<h2>キャラクター / Character</h2>";
   h += "<div class=\"row\"><label>キャラクターID（ホスト名にも使用） / Character ID (also used as hostname)</label>";

@@ -1,5 +1,7 @@
 #include "config.h"
 #include "provisioning.h"
+#include "assets_page.h"
+#include "serial_push.h"
 #include "M5CoreS3.h"
 #include "esp_camera.h"
 
@@ -964,6 +966,7 @@ void showFaceFile(const String& filename) {
 
 // ===================== API: list =====================
 void handleFaceList() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");  // 別プチのassetsページから参照できるように
   File dir = SD.open("/face/");
   if (!dir) {
     server.send(500, "application/json", "{\"error\":\"no face dir\"}");
@@ -991,6 +994,7 @@ void handleFaceList() {
 }
 
 void handleSeList() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");  // 別プチのassetsページから参照できるように
   File dir = SD.open("/wav/");
   if (!dir) {
     server.send(500, "application/json", "{\"error\":\"no wav dir\"}");
@@ -1537,7 +1541,8 @@ void handleHelp() {
   json += "{ \"path\":\"/powersave?value=true|false\", \"method\":\"GET\", \"description\":\"省電力モード切替（輝度制限+描画10fps）\" },";
   json += "{ \"path\":\"/getpowersave\", \"method\":\"GET\", \"description\":\"省電力モード状態取得\" },";
   json += "{ \"path\":\"/upload_wav\", \"method\":\"POST\", \"description\":\"WAVファイルをSDにアップロード（multipart/form-data, field: file）\" },";
-  json += "{ \"path\":\"/upload_face\", \"method\":\"POST\", \"description\":\"顔画像(JPG)をSDにアップロード（multipart/form-data, field: file）\" }";
+  json += "{ \"path\":\"/upload_face\", \"method\":\"POST\", \"description\":\"顔画像(JPG)をSDにアップロード（multipart/form-data, field: file）\" },";
+  json += "{ \"path\":\"/assets\", \"method\":\"GET\", \"description\":\"SDアセット導入ページ（ブラウザで開く）\" }";
   json += "]";
   json += "}";
   server.send(200, "application/json", json);
@@ -1572,6 +1577,9 @@ void handleIconPlay(){
 
 // ===================== Upload =====================
 void handleUploadWav() {
+  // Allow pushing from a page hosted on a different Petit (see assets_page.h's IP field).
+  // 別のプチが持つページから送れるように（assets_page.hのIP指定欄に対応）。
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "text/plain", "ok");
 }
 
@@ -1584,6 +1592,7 @@ void handleUploadWavData() {
     if (!filename.startsWith("/")) filename = "/" + filename;
     String path = "/wav" + filename;
     Serial.printf("[upload] WAV: %s\n", path.c_str());
+    if (!SD.exists("/wav")) SD.mkdir("/wav");  // empty-SD (WiFi push) flow / 空SDへのWiFi転送に対応
     uploadFile = SD.open(path, FILE_WRITE);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (uploadFile) {
@@ -1598,6 +1607,7 @@ void handleUploadWavData() {
 }
 
 void handleUploadFace() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "text/plain", "ok");
 }
 
@@ -1610,6 +1620,7 @@ void handleUploadFaceData() {
     if (!filename.startsWith("/")) filename = "/" + filename;
     String path = "/face" + filename;
     Serial.printf("[upload] Face: %s\n", path.c_str());
+    if (!SD.exists("/face")) SD.mkdir("/face");  // empty-SD (WiFi push) flow / 空SDへのWiFi転送に対応
     uploadFile = SD.open(path, FILE_WRITE);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (uploadFile) {
@@ -1808,6 +1819,10 @@ void setup() {
   server.on("/getpowersave", HTTP_GET, handleGetPowerSave);
   server.on("/upload_wav", HTTP_POST, handleUploadWav, handleUploadWavData);
   server.on("/upload_face", HTTP_POST, handleUploadFace, handleUploadFaceData);
+  // Browser-based SD asset installer (see assets_page.h) / ブラウザからのSDアセット導入ページ
+  server.on("/assets", HTTP_GET, []() {
+    server.send_P(200, "text/html", ASSETS_PAGE_HTML);
+  });
   server.on("/sleep", HTTP_GET, []() {
     server.send(200, "text/plain", "sleeping");
     delay(100);
@@ -1839,6 +1854,7 @@ void setup() {
 }
 
 void loop() {
+  handleSerialPush();  // USB経由のファイル転送（先頭でチェック、debugログとの混線を避ける）
   CoreS3.update();
   server.handleClient();
   webSocket.loop();
