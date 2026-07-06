@@ -1,4 +1,7 @@
 #include "config.h"
+#include "provisioning.h"
+#include "assets_page.h"
+#include "serial_push.h"
 #include "M5CoreS3.h"
 #include "esp_camera.h"
 
@@ -10,73 +13,55 @@
 #include <SD.h>
 #include <WebSocketsServer.h>
 
-// credentials.h is optional: without it, configure Wi-Fi via /config.txt on the SD card
-// credentials.h はオプション。無い場合はSDカードの /config.txt でWiFiを設定します
-#if __has_include("credentials.h")
-#include "credentials.h"
-#else
-const char* ssid1 = "";
-const char* pass1 = "";
-const char* ssid2 = "";
-const char* pass2 = "";
-#endif
+// ===================== Runtime config (NVS via provisioning.h) =====================
+// All values below are loaded from NVS by runProvisioningIfNeeded() in setup().
+// If NVS is unconfigured (first boot) or the screen was held at boot, that same
+// call runs the QR-code + captive-portal setup flow (see provisioning.cpp) and
+// reboots. Nothing here is a compile-time secret: no WiFi credentials are ever
+// hardcoded or shipped in this repo.
+// 以下の値はすべてsetup()内のrunProvisioningIfNeeded()がNVSから読み込みます。
+// NVS未設定（初回起動）の場合や起動時に画面を長押しした場合は、同じ呼び出しの中で
+// QRコード+キャプティブポータルによるセットアップフローが実行され(provisioning.cpp参照)、
+// 再起動します。ここにWiFi等の秘密情報がコンパイル時に埋め込まれることはありません。
+String cfgSsid1, cfgPass1;
+String cfgSsid2, cfgPass2;
+String cfgSsid3, cfgPass3;
+String cfgUserName;
+String cfgCharactorId;
+String cfgFaceColor;
+String cfgBackgroundColor;
+String cfgServerIp;
+String cfgVoiceIp;
+String cfgIp1, cfgIp2;  // optional static IP per WiFi slot / WiFi枠ごとの固定IP（空=DHCP）
+bool configLoadedFromSD = false;  // true if this boot migrated a legacy SD /config.txt into NVS / このブートでSDの旧config.txtをNVSへ移行した場合true
 
-// ===================== Runtime config (SD: /config.txt) =====================
-// Values start from compile-time defaults (config.h / credentials.h) and are
-// overridden by /config.txt on the SD card at boot (key=value lines).
-// コンパイル時デフォルト(config.h / credentials.h)を初期値に、起動時にSDカードの
-// /config.txt (key=value形式) で上書きします。
-String cfgSsid1 = ssid1;
-String cfgPass1 = pass1;
-String cfgSsid2 = ssid2;
-String cfgPass2 = pass2;
-String cfgUserName = USER_NAME;
-String cfgCharactorId = CHARACTOR_ID;
-String cfgHomeIpBegin = HOME_IP_BEGIN;
-int    cfgHomeIpLast = HOME_IP_LAST;
-String cfgTravelIpBegin = TRAVEL_IP_BEGIN;
-int    cfgTravelIpLast = TRAVEL_IP_LAST;
-String cfgFaceColor = DEFAULT_FACE_COLOR;
-String cfgBackgroundColor = DEFAULT_BACKGROUND_COLOR;
-bool configLoadedFromSD = false;
+struct WifiCandidate { String ssid; String pass; String ip; };
+WifiCandidate wifiCandidates[3];
+int wifiCandidateCount = 0;
 
-static void applyConfigLine(String line) {
-  line.trim();
-  if (line.length() == 0 || line.startsWith("#")) return;
-  int eq = line.indexOf('=');
-  if (eq <= 0) return;
-  String key = line.substring(0, eq);
-  String val = line.substring(eq + 1);
-  key.trim();
-  key.toLowerCase();
-  val.trim();
-  if      (key == "ssid1") cfgSsid1 = val;
-  else if (key == "pass1") cfgPass1 = val;
-  else if (key == "ssid2") cfgSsid2 = val;
-  else if (key == "pass2") cfgPass2 = val;
-  else if (key == "user_name") cfgUserName = val;
-  else if (key == "charactor_id") cfgCharactorId = val;
-  else if (key == "home_ip_begin") cfgHomeIpBegin = val;
-  else if (key == "home_ip_last") cfgHomeIpLast = val.toInt();
-  else if (key == "travel_ip_begin") cfgTravelIpBegin = val;
-  else if (key == "travel_ip_last") cfgTravelIpLast = val.toInt();
-  else if (key == "face_color") cfgFaceColor = val;
-  else if (key == "background_color") cfgBackgroundColor = val;
-  else Serial.printf("[config] unknown key: %s\n", key.c_str());
+// Builds the WiFi fallback list (ssid1 -> ssid2 -> ssid3, skipping blanks).
+// Call once cfgSsid1..cfgSsid3 / cfgPass1..cfgPass3 are populated.
+// WiFiフォールバックリスト（ssid1→ssid2→ssid3、空欄はスキップ）を作る。
+// cfgSsid1〜3・cfgPass1〜3を読み込んだ後に一度呼ぶこと。
+void buildWifiCandidates() {
+  wifiCandidateCount = 0;
+  if (cfgSsid1.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid1, cfgPass1, cfgIp1 };
+  if (cfgSsid2.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid2, cfgPass2, cfgIp2 };
+  if (cfgSsid3.length() > 0) wifiCandidates[wifiCandidateCount++] = { cfgSsid3, cfgPass3, String() };
 }
 
-bool loadConfigFromSD() {
-  File f = SD.open("/config.txt");
-  if (!f) {
-    Serial.println("[config] /config.txt not found, using compiled defaults");
-    return false;
+// Apply the candidate's static IP before WiFi.begin, or fall back to DHCP.
+// Gateway/DNS are assumed to be x.y.z.1 with a /24 mask (typical home router).
+// WiFi.begin前に候補の固定IPを適用（空ならDHCP）。ゲートウェイ/DNSはx.y.z.1・/24前提。
+void applyCandidateIpConfig(const WifiCandidate& c) {
+  IPAddress ip;
+  if (c.ip.length() > 0 && ip.fromString(c.ip)) {
+    IPAddress gw(ip[0], ip[1], ip[2], 1);
+    WiFi.config(ip, gw, IPAddress(255, 255, 255, 0), gw);
+    Serial.printf("[wifi] static IP %s (gw %s)\n", c.ip.c_str(), gw.toString().c_str());
+  } else {
+    WiFi.config(IPAddress((uint32_t)0), IPAddress((uint32_t)0), IPAddress((uint32_t)0));  // DHCP
   }
-  while (f.available()) {
-    applyConfigLine(f.readStringUntil('\n'));
-  }
-  f.close();
-  Serial.println("[config] loaded /config.txt");
-  return true;
 }
 
 // ===================== Files / SD =====================
@@ -981,6 +966,7 @@ void showFaceFile(const String& filename) {
 
 // ===================== API: list =====================
 void handleFaceList() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");  // 別プチのassetsページから参照できるように
   File dir = SD.open("/face/");
   if (!dir) {
     server.send(500, "application/json", "{\"error\":\"no face dir\"}");
@@ -1008,6 +994,7 @@ void handleFaceList() {
 }
 
 void handleSeList() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");  // 別プチのassetsページから参照できるように
   File dir = SD.open("/wav/");
   if (!dir) {
     server.send(500, "application/json", "{\"error\":\"no wav dir\"}");
@@ -1101,12 +1088,6 @@ void handleSnapshot() {
 }
 
 // ===================== WiFi =====================
-IPAddress ipFromPrefix(const char* prefix, int lastOctet) {
-  IPAddress ip;
-  ip.fromString(String(prefix) + "." + String(lastOctet));
-  return ip;
-}
-
 void updateWifiState() {
   if (millis() - lastWifiCheck < 500) return;
   lastWifiCheck = millis();
@@ -1138,27 +1119,14 @@ void updateWifiState() {
 
   if (!wifiConnected && (millis() - lastReconnectTry > 1000)) {
     lastReconnectTry = millis();
-    reconnectAttempt++;
-    WiFi.disconnect();
-    if (reconnectAttempt == 1 && cfgSsid1.length() > 0) {
-      // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
-      IPAddress home_lip = ipFromPrefix(cfgHomeIpBegin.c_str(), cfgHomeIpLast);
-      IPAddress home_gw  = ipFromPrefix(cfgHomeIpBegin.c_str(), 1);
-      IPAddress home_sn(255, 255, 255, 0);
-      WiFi.config(home_lip, home_gw, home_sn, home_gw);
-      WiFi.begin(cfgSsid1.c_str(), cfgPass1.c_str());
-      Serial.printf("[reconnect] trying WiFi1: %s\n", cfgSsid1.c_str());
-    } else if (cfgSsid2.length() > 0) {
-      // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
-      IPAddress router_lip = ipFromPrefix(cfgTravelIpBegin.c_str(), cfgTravelIpLast);
-      IPAddress router_gw  = ipFromPrefix(cfgTravelIpBegin.c_str(), 1);
-      IPAddress router_sn(255, 255, 255, 0);
-      WiFi.config(router_lip, router_gw, router_sn);
-      WiFi.begin(cfgSsid2.c_str(), cfgPass2.c_str());
-      Serial.printf("[reconnect] trying WiFi2: %s\n", cfgSsid2.c_str());
-      reconnectAttempt = 0;  // reset / リセット
-    } else {
-      reconnectAttempt = 0;  // nothing configured, keep cycling / 未設定ならリセットだけ
+    if (wifiCandidateCount > 0) {
+      // Cycle through the configured WiFi candidates in order (DHCP). / 設定済みWiFi候補を順に試す(DHCP)。
+      int idx = reconnectAttempt % wifiCandidateCount;
+      WiFi.disconnect();
+      applyCandidateIpConfig(wifiCandidates[idx]);
+      WiFi.begin(wifiCandidates[idx].ssid.c_str(), wifiCandidates[idx].pass.c_str());
+      Serial.printf("[reconnect] trying WiFi%d: %s\n", idx + 1, wifiCandidates[idx].ssid.c_str());
+      reconnectAttempt++;
     }
   }
 }
@@ -1573,7 +1541,8 @@ void handleHelp() {
   json += "{ \"path\":\"/powersave?value=true|false\", \"method\":\"GET\", \"description\":\"省電力モード切替（輝度制限+描画10fps）\" },";
   json += "{ \"path\":\"/getpowersave\", \"method\":\"GET\", \"description\":\"省電力モード状態取得\" },";
   json += "{ \"path\":\"/upload_wav\", \"method\":\"POST\", \"description\":\"WAVファイルをSDにアップロード（multipart/form-data, field: file）\" },";
-  json += "{ \"path\":\"/upload_face\", \"method\":\"POST\", \"description\":\"顔画像(JPG)をSDにアップロード（multipart/form-data, field: file）\" }";
+  json += "{ \"path\":\"/upload_face\", \"method\":\"POST\", \"description\":\"顔画像(JPG)をSDにアップロード（multipart/form-data, field: file）\" },";
+  json += "{ \"path\":\"/assets\", \"method\":\"GET\", \"description\":\"SDアセット導入ページ（ブラウザで開く）\" }";
   json += "]";
   json += "}";
   server.send(200, "application/json", json);
@@ -1608,6 +1577,9 @@ void handleIconPlay(){
 
 // ===================== Upload =====================
 void handleUploadWav() {
+  // Allow pushing from a page hosted on a different Petit (see assets_page.h's IP field).
+  // 別のプチが持つページから送れるように（assets_page.hのIP指定欄に対応）。
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "text/plain", "ok");
 }
 
@@ -1620,6 +1592,7 @@ void handleUploadWavData() {
     if (!filename.startsWith("/")) filename = "/" + filename;
     String path = "/wav" + filename;
     Serial.printf("[upload] WAV: %s\n", path.c_str());
+    if (!SD.exists("/wav")) SD.mkdir("/wav");  // empty-SD (WiFi push) flow / 空SDへのWiFi転送に対応
     uploadFile = SD.open(path, FILE_WRITE);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (uploadFile) {
@@ -1634,6 +1607,7 @@ void handleUploadWavData() {
 }
 
 void handleUploadFace() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "text/plain", "ok");
 }
 
@@ -1646,6 +1620,7 @@ void handleUploadFaceData() {
     if (!filename.startsWith("/")) filename = "/" + filename;
     String path = "/face" + filename;
     Serial.printf("[upload] Face: %s\n", path.c_str());
+    if (!SD.exists("/face")) SD.mkdir("/face");  // empty-SD (WiFi push) flow / 空SDへのWiFi転送に対応
     uploadFile = SD.open(path, FILE_WRITE);
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     if (uploadFile) {
@@ -1712,16 +1687,33 @@ void setup() {
   CoreS3.Display.setCursor(0, 0);
   CoreS3.Display.println("Booting...");
 
-  // SD
-  if (!SD.begin(GPIO_NUM_4)) {
-    Serial.println("SD Init Failed");
-  } else {
-    Serial.println("SD Init OK");
-    // Load /config.txt (overrides compiled defaults) / 設定読み込み(コンパイル時デフォルトを上書き)
-    configLoadedFromSD = loadConfigFromSD();
-  }
+  // SD (assets only now: face images / sounds. No secrets live here anymore.)
+  // SD（今はアセットのみ：顔画像・効果音。秘密情報はもう置かない）
+  bool sdOk = SD.begin(GPIO_NUM_4);
+  Serial.println(sdOk ? "SD Init OK" : "SD Init Failed");
 
-  // Apply (possibly overridden) config / 読み込んだ設定を反映
+  // Provisioning: load config from NVS. Migrates a legacy SD /config.txt if one
+  // is present and NVS isn't configured yet. If still unconfigured -- or the
+  // screen was held down at boot -- this runs the QR + captive-portal setup
+  // flow and reboots (does not return in that case).
+  // プロビジョニング：NVSから設定を読み込む。NVS未設定でSDに旧config.txtがあれば移行。
+  // それでも未設定、または起動時に画面を長押しした場合はQR+キャプティブポータルの
+  // セットアップフローを実行して再起動する（その場合は戻らない）。
+  PetitConfig pcfg = runProvisioningIfNeeded(sdOk);
+  cfgSsid1 = pcfg.ssid1;  cfgPass1 = pcfg.pass1;
+  cfgSsid2 = pcfg.ssid2;  cfgPass2 = pcfg.pass2;
+  cfgSsid3 = pcfg.ssid3;  cfgPass3 = pcfg.pass3;
+  cfgIp1 = pcfg.ip1;      cfgIp2 = pcfg.ip2;
+  cfgUserName        = pcfg.displayName;
+  cfgCharactorId     = pcfg.charactorId;
+  cfgFaceColor       = pcfg.faceColor;
+  cfgBackgroundColor = pcfg.backgroundColor;
+  cfgServerIp        = pcfg.serverIp;
+  cfgVoiceIp         = pcfg.voiceIp.length() > 0 ? pcfg.voiceIp : pcfg.serverIp;
+  configLoadedFromSD = pcfg.migratedFromSd;
+  buildWifiCandidates();
+
+  // Apply loaded config / 読み込んだ設定を反映
   camTarget = cfgUserName;
   currentFaceColor = colorFromHex(cfgFaceColor.c_str());
   currentBackgroundColor = colorFromHex(cfgBackgroundColor.c_str());
@@ -1750,45 +1742,26 @@ void setup() {
   }
 
 
-  // WiFi (falls back from ssid1 to ssid2) / WiFi（ssid1 → ssid2 のフォールバック）
+  // WiFi (falls back ssid1 -> ssid2 -> ssid3, plain DHCP) / WiFi（ssid1→ssid2→ssid3のフォールバック、DHCP）
   WiFi.mode(WIFI_STA);
 
-  if (cfgSsid1.length() == 0 && cfgSsid2.length() == 0) {
-    // No Wi-Fi configured: guide the user to config.txt / WiFi未設定: config.txtへ誘導
-    Serial.println("No WiFi configured. Put config.txt on the SD card.");
+  if (wifiCandidateCount == 0) {
+    // Shouldn't normally happen: provisioning requires WiFi1. Kept as a defensive fallback
+    // in case NVS gets corrupted, etc.
+    // 通常は起きないはず（プロビジョニングでWiFi1は必須）。NVS破損時などのための保険。
+    Serial.println("No WiFi configured. Hold the screen at boot to open setup.");
     CoreS3.Display.setTextColor(TFT_RED, currentBackgroundColor);
     CoreS3.Display.println("WiFi not configured!");
-    CoreS3.Display.println("Put config.txt on the SD card.");
-    CoreS3.Display.println("SDカードに config.txt を");
-    CoreS3.Display.println("置いてください");
+    CoreS3.Display.println("Hold the screen at boot for setup.");
+    CoreS3.Display.println("起動時に画面を長押しして");
+    CoreS3.Display.println("セットアップしてください");
   }
 
-  // ssid1: home Wi-Fi, static IP / 家WiFi（固定IP）
-  if (cfgSsid1.length() > 0) {
-    Serial.printf("Trying WiFi1: %s\n", cfgSsid1.c_str());
+  for (int i = 0; i < wifiCandidateCount && WiFi.status() != WL_CONNECTED; i++) {
+    Serial.printf("Trying WiFi%d: %s\n", i + 1, wifiCandidates[i].ssid.c_str());
     WiFi.disconnect();
-    IPAddress home_IP = ipFromPrefix(cfgHomeIpBegin.c_str(), cfgHomeIpLast);
-    IPAddress home_gw = ipFromPrefix(cfgHomeIpBegin.c_str(), 1);
-    IPAddress home_sn(255, 255, 255, 0);
-    WiFi.config(home_IP, home_gw, home_sn, home_gw);
-    WiFi.begin(cfgSsid1.c_str(), cfgPass1.c_str());
-    unsigned long t0 = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
-      delay(200);
-      Serial.print(".");
-    }
-    Serial.println();
-  }
-
-  // ssid2: travel router, static IP / 旅行用ルーター（固定IP）
-  if (WiFi.status() != WL_CONNECTED && cfgSsid2.length() > 0) {
-    Serial.printf("WiFi1 failed, trying WiFi2: %s\n", cfgSsid2.c_str());
-    WiFi.disconnect();
-    IPAddress router_IP = ipFromPrefix(cfgTravelIpBegin.c_str(), cfgTravelIpLast);
-    IPAddress router_gw = ipFromPrefix(cfgTravelIpBegin.c_str(), 1);
-    IPAddress router_sn(255, 255, 255, 0);
-    WiFi.config(router_IP, router_gw, router_sn);
-    WiFi.begin(cfgSsid2.c_str(), cfgPass2.c_str());
+    applyCandidateIpConfig(wifiCandidates[i]);
+    WiFi.begin(wifiCandidates[i].ssid.c_str(), wifiCandidates[i].pass.c_str());
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
       delay(200);
@@ -1811,8 +1784,11 @@ void setup() {
       Serial.println("mDNS failed");
     }
 
-    // NTP time sync (JST = UTC+9) / NTP 時刻同期
-    configTime(9 * 3600, 0, "192.168.1.1", "192.168.8.1");
+    // NTP time sync (JST = UTC+9). Uses public NTP pools since WiFi1-3 may now be
+    // arbitrary networks (no more fixed "home router IP" assumption).
+    // NTP 時刻同期（JST = UTC+9）。WiFi1〜3は任意のネットワークになり得るため
+    // （"家ルーターのIP"固定という前提が無くなったため）、公開NTPプールを使う。
+    configTime(9 * 3600, 0, "pool.ntp.org", "time.google.com");
     Serial.println("NTP configured");
   } else {
     ipString = "0.0.0.0";
@@ -1843,6 +1819,10 @@ void setup() {
   server.on("/getpowersave", HTTP_GET, handleGetPowerSave);
   server.on("/upload_wav", HTTP_POST, handleUploadWav, handleUploadWavData);
   server.on("/upload_face", HTTP_POST, handleUploadFace, handleUploadFaceData);
+  // Browser-based SD asset installer (see assets_page.h) / ブラウザからのSDアセット導入ページ
+  server.on("/assets", HTTP_GET, []() {
+    server.send_P(200, "text/html", ASSETS_PAGE_HTML);
+  });
   server.on("/sleep", HTTP_GET, []() {
     server.send(200, "text/plain", "sleeping");
     delay(100);
@@ -1874,6 +1854,7 @@ void setup() {
 }
 
 void loop() {
+  handleSerialPush();  // USB経由のファイル転送（先頭でチェック、debugログとの混線を避ける）
   CoreS3.update();
   server.handleClient();
   webSocket.loop();
