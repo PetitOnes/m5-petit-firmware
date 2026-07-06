@@ -6,34 +6,71 @@
   <title>M5 Petit — ブラウザから書き込み / Web Flasher</title>
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
   <style>
-    :root { color-scheme: light dark; }
+    :root {
+      color-scheme: light dark;
+      --turquoise: #00afcc;
+      --yellow: #fff262;
+      --lavender: #cab8d9;
+      --coral: #F58E7D;
+      --card-bg: color-mix(in srgb, currentColor 5%, transparent);
+      --card-border: color-mix(in srgb, currentColor 14%, transparent);
+    }
     body {
       font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
-      max-width: 640px; margin: 0 auto; padding: 24px 16px; line-height: 1.7;
+      max-width: 640px; margin: 0 auto; padding: 24px 16px 40px; line-height: 1.8;
+      font-size: 16px;
     }
-    h1 { font-size: 1.4rem; }
+    @media (min-width: 480px) { body { font-size: 17px; } }
+    .hero { text-align: center; margin-bottom: 8px; }
+    .hero .emoji { font-size: 2.4rem; line-height: 1; }
+    h1 { font-size: 1.5rem; margin: 8px 0 4px; }
+    .hero p { opacity: 0.85; margin-top: 4px; }
     .card {
-      border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-      border-radius: 12px; padding: 16px 20px; margin: 16px 0;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px; padding: 18px 20px; margin: 18px 0;
     }
-    .flash { text-align: center; padding: 28px 20px; }
+    .step {
+      border-left: 6px solid var(--step-color, currentColor);
+      border-radius: 12px 16px 16px 12px;
+    }
+    .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .badge {
+      flex: none; width: 2.2rem; height: 2.2rem; border-radius: 50%;
+      background: var(--step-color, currentColor); color: #111;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.1rem;
+    }
+    .step-title { font-size: 1.2rem; font-weight: 700; }
+    .step1 { --step-color: var(--turquoise); }
+    .step2 { --step-color: var(--yellow); }
+    .step3 { --step-color: var(--lavender); }
+    .flash { text-align: center; padding: 22px 20px 26px; }
     ol { padding-left: 1.4em; }
-    li { margin: 6px 0; }
-    .note { font-size: 0.9rem; opacity: 0.8; }
+    li { margin: 8px 0; }
+    .note { font-size: 0.92rem; opacity: 0.8; }
     a { color: inherit; }
-    esp-web-install-button::part(button) { font-size: 1.05rem; padding: 10px 22px; }
-    code {
-      background: color-mix(in srgb, currentColor 8%, transparent);
-      padding: 1px 5px; border-radius: 4px;
+    esp-web-install-button { margin-top: 6px; }
+    esp-web-install-button::part(button) {
+      font-size: 1.1rem; padding: 12px 26px; border-radius: 10px;
     }
+    code {
+      background: color-mix(in srgb, currentColor 10%, transparent);
+      padding: 1px 6px; border-radius: 5px;
+    }
+    footer { margin-top: 28px; font-size: 0.9rem; opacity: 0.85; }
+    footer p { margin: 6px 0; }
   </style>
 </head>
 <body>
-  <h1>🤖 M5 Petit — ブラウザから書き込み</h1>
-  <p>
-    M5Stack CoreS3にぷちのファームウェアを書き込みます。Arduino IDEのインストールは不要です。<br>
-    <span class="note">Flash the M5 Petit firmware to your M5Stack CoreS3 — no Arduino IDE needed.</span>
-  </p>
+  <div class="hero">
+    <div class="emoji">🤖</div>
+    <h1>M5 Petit — ブラウザから書き込み</h1>
+    <p>
+      M5Stack CoreS3にぷちのファームウェアを書き込みます。Arduino IDEのインストールは不要です。<br>
+      <span class="note">Flash the M5 Petit firmware to your M5Stack CoreS3 — no Arduino IDE needed.</span>
+    </p>
+  </div>
 
   <div class="card">
     <strong>用意するもの / You need</strong>
@@ -43,15 +80,15 @@
     </ol>
   </div>
 
-  <div class="card flash">
-    <strong>1. 書き込み / Flash</strong>
+  <div class="card step step1 flash">
+    <div class="step-head"><span class="badge">1</span><span class="step-title">書き込み / Flash</span></div>
     <p>CoreS3をUSBでPCにつなぎ、ボタンを押してポートを選ぶ / Connect the CoreS3 via USB, click the button and pick the serial port</p>
     <esp-web-install-button manifest="./manifest.json"></esp-web-install-button>
     <p class="note">初めての書き込みでは「Erase device」にチェックを入れてください / Check "Erase device" on first install</p>
   </div>
 
-  <div class="card">
-    <strong>2. スマホから設定 / Set up from your phone</strong>
+  <div class="card step step2">
+    <div class="step-head"><span class="badge">2</span><span class="step-title">スマホから設定 / Set up from your phone</span></div>
     <p>
       初回起動時にCoreS3の画面にQRコードが表示されます。スマホで読み取って表示されたWiFi（<code>M5Petit-XXXX</code>）に接続すると設定ページが開くので、WiFi・名前・色を入力して保存してください（SDカードへの書き込みは不要です）。<br>
       <span class="note">A QR code appears on the CoreS3 screen. Scan it, join the <code>M5Petit-XXXX</code> WiFi it shows, and fill in WiFi/name/color on the page that opens (no SD card editing needed).</span>
@@ -62,8 +99,8 @@
     </p>
   </div>
 
-  <div class="card">
-    <strong>3. SDアセット送信（任意） / Push SD assets (optional)</strong>
+  <div class="card step step3">
+    <div class="step-head"><span class="badge">3</span><span class="step-title">SDアセット送信（任意） / Push SD assets (optional)</span></div>
     <p>
       顔画像・効果音を使いたい場合、空のFAT32 SDカードをM5に挿したまま、スマホ/PCのブラウザで下のURLを開いてください（ボタンひとつで標準セットが入ります）：<br>
       <span class="note">If you want custom face images / sounds, insert an empty FAT32 SD card into the M5, then open the URL below in a phone/PC browser (one button installs the default set):</span>
@@ -79,11 +116,13 @@
     </p>
   </div>
 
-  <p class="note">→ 全ての設定項目・API仕様は <a href="https://github.com/PetitOnes/m5-petit-firmware/blob/main/HOW_TO_SETUP_M5_CORES3.md">セットアップガイド / Full Setup Guide</a> へ</p>
-
-  <p class="note">
-    うまくいかないとき: ケーブルが充電専用でないか確認 / ポートが出ないときはドライバ不要のはずですがOSを再起動してみてください。<br>
-    <a href="https://github.com/PetitOnes/m5-petit-firmware">PetitOnes/m5-petit-firmware</a> — Building Embodied AI together.
-  </p>
+  <footer>
+    <p>→ 全ての設定項目・API仕様は <a href="https://github.com/PetitOnes/m5-petit-firmware/blob/main/HOW_TO_SETUP_M5_CORES3.md">セットアップガイド / Full Setup Guide</a> へ</p>
+    <p>
+      うまくいかないとき: ケーブルが充電専用でないか確認 / ポートが出ないときはドライバ不要のはずですがOSを再起動してみてください。<br>
+      Trouble? Make sure the cable isn't charge-only / try restarting your OS if no port shows up.
+    </p>
+    <p><a href="https://github.com/PetitOnes/m5-petit-firmware">PetitOnes/m5-petit-firmware</a> — Building Embodied AI together.</p>
+  </footer>
 </body>
 </html>
