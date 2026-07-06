@@ -355,10 +355,25 @@ String buildFormPage(const String& errorMsg) {
   };
   for (const char* c : kBrightPresets) {
     h += "<button type=\"button\" style=\"background:#" + String(c) + "\" "
-         "onclick=\"document.getElementsByName('face_color')[0].value='#" + String(c) + "'\"></button>";
+         "onclick=\"setFaceColor('#" + String(c) + "')\"></button>";
   }
   h += "</div>";
-  h += "<input type=\"color\" name=\"face_color\" value=\"#" + htmlEscape(g_formCfg.faceColor) + "\"></div>";
+  // Color picker + hex-code text input, kept in sync both ways. Only the
+  // picker (name=face_color) is submitted; the hex field is JS-only.
+  // カラーピッカーとカラーコード入力欄（双方向同期）。送信されるのはピッカー側のみ。
+  h += "<div style=\"display:flex;gap:8px\">";
+  h += "<input type=\"color\" name=\"face_color\" id=\"fcPick\" value=\"#" + htmlEscape(g_formCfg.faceColor) +
+       "\" style=\"flex:none;width:64px\" oninput=\"document.getElementById('fcHex').value=this.value\">";
+  h += "<input type=\"text\" id=\"fcHex\" value=\"#" + htmlEscape(g_formCfg.faceColor) +
+       "\" placeholder=\"#fff262\" maxlength=\"7\" style=\"flex:1\" "
+       "oninput=\"faceHexInput(this)\"></div>";
+  h += "<script>"
+       "function setFaceColor(v){document.getElementById('fcPick').value=v;"
+       "document.getElementById('fcHex').value=v;}"
+       "function faceHexInput(el){var v=el.value.trim();"
+       "if(v&&v[0]!=='#')v='#'+v;"
+       "if(/^#[0-9a-fA-F]{6}$/.test(v)){document.getElementById('fcPick').value=v;}}"
+       "</script></div>";
   h += "<div class=\"row\"><label>背景色 / Background color</label>";
   h += "<input type=\"color\" name=\"bg_color\" value=\"#" + htmlEscape(g_formCfg.backgroundColor) + "\"></div>";
 
