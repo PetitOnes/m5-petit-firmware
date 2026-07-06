@@ -6,6 +6,14 @@ How to flash the firmware onto an M5 CoreS3 and get the face showing.
 > and network/security notes, see the Japanese doc: [HOW_TO_SETUP_M5_CORES3.md](./HOW_TO_SETUP_M5_CORES3.md)
 > (mostly readable via machine translation if needed).
 
+## Quick start (3 steps)
+
+1. **Flash** -- open the [Web Flasher](https://petitones.github.io/m5-petit-firmware/) in Chrome/Edge, connect over USB, click install
+2. **Set up from your phone** -- scan the QR code on screen, join `M5Petit-XXXX`, fill in WiFi/name/color on the page that opens and save
+3. **Push SD assets** (optional) -- open `http://<M5's IP or character-id.local>/assets` in a phone/PC browser and tap a button
+
+See steps 1-4 below for the full details.
+
 ## What you need
 
 - M5Stack CoreS3
@@ -64,17 +72,37 @@ To re-enter setup later, **touch and hold the screen for 3 seconds** right after
 
 The SD card now holds **only non-secret assets** -- face images and sound effects. **The device boots, connects to WiFi, and can be set up without an SD card at all** (you'll just be missing face animations / sound effects).
 
-#### Option A: push over WiFi (recommended -- no PC card reader needed)
+#### Option A: push from a browser (easiest -- no PC needed)
 
-With an empty FAT32 SD card inserted in the M5, after finishing step 2 run:
+With an empty FAT32 SD card inserted in the M5, after finishing step 2 open in a phone/PC browser:
+
+```
+http://<M5's IP address or character-id.local>/assets
+```
+
+Tap "Install defaults" to fetch the bundled set (7 faces, 10 sounds) from GitHub and push it to the SD card. You can also pick your own `.jpg`/`.wav` files to upload.
+
+Change the target-IP field to push to a *different* Petit than the one that served the page -- handy for setting up several devices from one phone/PC.
+
+#### Option B: push from a PC script (over WiFi)
 
 ```bash
 python3 tools/push_sd_assets.py <M5 IP address>
 ```
 
-This uploads the bundled default assets (7 faces, 12 sounds) to the M5's SD card over WiFi. Use `--assets <dir>` (containing face/ and wav/) for custom assets.
+Use `--assets <dir>` (containing face/ and wav/) for custom assets.
 
-#### Option B: copy to the SD card directly
+#### Option C: push from a PC over USB serial (when WiFi is flaky)
+
+With the M5 plugged into a PC over USB:
+
+```bash
+python3 tools/push_sd_assets_serial.py /dev/ttyACM0
+```
+
+No WiFi needed. Note: bulk transfers can currently hit occasional `ERR timeout`s and are less reliable than Option A/B (being improved).
+
+#### Option D: copy to the SD card directly
 
 Unzip this repo's [`sd.zip`](./sd.zip) onto the root of a FAT32 SD card:
 
