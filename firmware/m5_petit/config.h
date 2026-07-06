@@ -1,18 +1,20 @@
 #pragma once
 
-// User name / ユーザー名定義
-#define USER_NAME   "yourname"
+// Default values used only the very first time the QR/captive-portal setup
+// runs (before anything has been saved to NVS). These are not secrets, so
+// they're safe to keep in source. You can also just type these values into
+// the setup portal on your phone instead of editing this file.
+// QR+キャプティブポータルによるセットアップを最初に実行するときだけ使われる初期値
+// （NVSに何も保存されていない状態専用）。秘密情報ではないのでソースに置いても
+// 問題ありません。このファイルを編集する代わりに、スマホのセットアップポータル画面で
+// 直接入力してもOKです。
 
-// Character (device) name / ぷちの名前
+// Character (device) ID. Also used as the mDNS hostname: http://<charactor_id>.local/
+// キャラクター(デバイス)ID。http://<charactor_id>.local/ のホスト名にも使われます
 #define CHARACTOR_ID "puchi"
 
-// If using at home only, put the same value in both / 家だけで使う場合は同じものを入れてください
-// Static IP for home Wi-Fi, e.g. last octet of 192.168.1.XX / ぷちのIPアドレス (e.g.) 192.168.1.XXのラストIP
-#define HOME_IP_BEGIN "192.168.1"
-#define HOME_IP_LAST 12
-// Static IP for travel Wi-Fi, e.g. last octet of 192.168.8.XX / ぷちのIPアドレス (e.g.) 192.168.8.XXのラストIP
-#define TRAVEL_IP_BEGIN "192.168.8"
-#define TRAVEL_IP_LAST 100
+// Display name shown on the on-device settings screen ("CAM TO") / 設定画面(CAM TO)に表示される名前
+#define USER_NAME   "yourname"
 
 // Appearance: face color and background color / 見た目設定・顔の色と背景色
 #define DEFAULT_FACE_COLOR "e68fac"
