@@ -8,7 +8,7 @@ Host-PC utility scripts (mail, chat logs, cost summaries, etc.) live in [m5-peti
 
 ## Setup
 
-**[HOW_TO_SETUP_M5_CORES3.md](./HOW_TO_SETUP_M5_CORES3.md)** (Japanese) — walks through config file → flashing → SD card → first boot.
+**[HOW_TO_SETUP_M5_CORES3.md](./HOW_TO_SETUP_M5_CORES3.md)** (Japanese) — walks through flashing → first-boot QR/captive-portal setup → SD card (assets only) → first boot check.
 
 Two ways to flash:
 
@@ -19,7 +19,7 @@ Two ways to flash:
 
 ## Layout
 
-- `firmware/m5_petit/` — the M5Stack CoreS3 firmware (`.ino`). WiFi and other settings are loaded from `config.txt` on the SD card (see `config.example.txt`)
+- `firmware/m5_petit/` — the M5Stack CoreS3 firmware (`.ino`). WiFi and other settings are entered via a first-boot QR-code + captive-portal setup flow and stored in the ESP32's internal flash (NVS) (`provisioning.h`/`provisioning.cpp`). The SD card only holds face images and sounds.
 - `web/` — source of the Web Flasher page (published via GitHub Pages). Flashes CI-built firmware through [ESP Web Tools](https://esphome.github.io/esp-web-tools/)
 - `sd.zip` — face images and sound effects to put on the SD card
 - `img/` — documentation images (Arduino IDE setup screenshots, etc.)
