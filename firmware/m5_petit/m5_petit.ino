@@ -1681,6 +1681,10 @@ void setup() {
   randomSeed((uint32_t)esp_random());
   nextBlinkTime = millis() + random(2000, 6000);
   faceSprite.setColorDepth(16);
+  // Put the face sprite (320x240x2 ≈ 150 KB) in PSRAM. In internal RAM it leaves ~18 KB free after WiFi
+  // and the HTTP server starts refusing connections. / 顔スプライトは PSRAM に。内蔵 RAM だと Wi-Fi 後の空きが
+  // 18 KB になり HTTP が受け付けられなくなる(2026-10-16 ぷちてゃで実測: 18 KB → 175 KB)
+  faceSprite.setPsram(true);
   faceSprite.createSprite(320, 240);
   faceSprite.fillSprite(currentBackgroundColor);
   faceSprite.pushSprite(0, 0);
