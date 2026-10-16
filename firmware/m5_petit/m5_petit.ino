@@ -1109,6 +1109,14 @@ void updateWifiState() {
         MDNS.addService("ws", "tcp", 8080);
         Serial.printf("mDNS: %s.local\n", cfgCharactorId.c_str());
       }
+      // Re-open HTTP/WebSocket listeners: after a WiFi drop the listening sockets can be gone
+      // (ping answers but port 80 is "connection refused"). / Wi-Fi が切れて戻ったあと、待ち受けソケットが
+      // 消えて ping は通るのに 80 番が Connection refused になることがあるので、HTTP と WebSocket を立て直す
+      server.close();
+      server.begin();
+      webSocket.close();
+      webSocket.begin();
+      Serial.println("HTTP/WS servers restarted");
       playWavFromSD("/wav/success.wav");
     } else {
       Serial.println("WiFi disconnected");
@@ -1673,6 +1681,10 @@ void setup() {
   randomSeed((uint32_t)esp_random());
   nextBlinkTime = millis() + random(2000, 6000);
   faceSprite.setColorDepth(16);
+  // Put the face sprite (320x240x2 ≈ 150 KB) in PSRAM. In internal RAM it leaves ~18 KB free after WiFi
+  // and the HTTP server starts refusing connections. / 顔スプライトは PSRAM に。内蔵 RAM だと Wi-Fi 後の空きが
+  // 18 KB になり HTTP が受け付けられなくなる(2026-10-16 ぷちてゃで実測: 18 KB → 175 KB)
+  faceSprite.setPsram(true);
   faceSprite.createSprite(320, 240);
   faceSprite.fillSprite(currentBackgroundColor);
   faceSprite.pushSprite(0, 0);
