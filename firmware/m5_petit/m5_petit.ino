@@ -1109,6 +1109,14 @@ void updateWifiState() {
         MDNS.addService("ws", "tcp", 8080);
         Serial.printf("mDNS: %s.local\n", cfgCharactorId.c_str());
       }
+      // Re-open HTTP/WebSocket listeners: after a WiFi drop the listening sockets can be gone
+      // (ping answers but port 80 is "connection refused"). / Wi-Fi が切れて戻ったあと、待ち受けソケットが
+      // 消えて ping は通るのに 80 番が Connection refused になることがあるので、HTTP と WebSocket を立て直す
+      server.close();
+      server.begin();
+      webSocket.close();
+      webSocket.begin();
+      Serial.println("HTTP/WS servers restarted");
       playWavFromSD("/wav/success.wav");
     } else {
       Serial.println("WiFi disconnected");
